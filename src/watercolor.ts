@@ -1,5 +1,49 @@
 import * as T from 'three';
 
+// Curved fern fronds with paired leaflets; shared by all undergrowth instances.
+export function fernGeometry() {
+  const vertices:number[]=[],indices:number[]=[];
+  for(let frond=0;frond<7;frond++) {
+    const angle=frond*Math.PI*2/7;
+    const point=(r:number,y:number,side:number)=>[Math.cos(angle)*r-Math.sin(angle)*side,y,Math.sin(angle)*r+Math.cos(angle)*side];
+    for(let step=1;step<8;step++) {
+      const t=step/8,r=t*.95,y=Math.sin(t*Math.PI*.78)*.62,width=Math.sin(t*Math.PI)*.23;
+      for(const side of [-1,1]) {
+        const n=vertices.length/3;
+        // A narrow curved leaflet, with a rounded shoulder and a tapered tip.
+        for(let edge=0;edge<6;edge++){
+          const a=edge*Math.PI/3,lateral=(1-Math.cos(a))*.5;
+          vertices.push(...point(r+lateral*.12+Math.sin(a)*.035,y+Math.sin(lateral*Math.PI)*.035-lateral*.045,side*width*lateral));
+        }
+        for(let edge=1;edge<5;edge++)indices.push(n,n+edge,n+edge+1);
+      }
+    }
+  }
+  const geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.Float32BufferAttribute(vertices,3));geometry.setIndex(indices);geometry.computeVertexNormals();return geometry;
+}
+
+// Instance origins give neighboring plants a coherent breeze. Roots remain fixed.
+export function addWind(mat:T.Material,time:{value:number},strength:number,rooted=false) {
+  const paint=mat.onBeforeCompile.bind(mat),key=mat.customProgramCacheKey();
+  mat.onBeforeCompile=(shader,renderer)=>{
+    paint(shader,renderer);shader.uniforms.uBreeze=time;
+    shader.vertexShader='uniform float uBreeze;\n'+shader.vertexShader;
+    shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>',`
+      #include <begin_vertex>
+      vec3 origin = vec3(0.0);
+      #ifdef USE_INSTANCING
+        origin = instanceMatrix[3].xyz;
+      #endif
+      float breeze = sin(uBreeze * 1.3 + origin.x * .23 + origin.z * .18)
+        + .35 * sin(uBreeze * 2.2 + origin.z * .5);
+      float anchor = ${rooted?'max(position.y, 0.0)':'1.0'};
+      transformed.x += breeze * anchor * ${strength.toFixed(4)};
+      transformed.z += cos(uBreeze + origin.x * .19) * anchor * ${(strength*.4).toFixed(4)};
+    `);
+  };
+  mat.customProgramCacheKey=()=>key+`-wind-${strength}-${rooted}`;
+}
+
 // Shared paper/pigment noise is sampled in world space, so washes stay attached
 // to the landscape instead of swimming over the screen when the camera moves.
 export function createWatercolorMaterials() {

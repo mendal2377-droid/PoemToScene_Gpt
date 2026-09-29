@@ -30,6 +30,7 @@ export default function App() {
   const host=useRef<HTMLDivElement>(null),world=useRef<WorldAPI|null>(null),ambience=useRef<ReturnType<typeof createAmbience>|null>(null);
   const [ready,setReady]=useState(false),[failed,setFailed]=useState(false),[retry,setRetry]=useState(0);
   const [mode,setMode]=useState<Mode>('view'),[active,setActive]=useState<number|null>(null),[found,setFound]=useState<number[]>(readProgress);
+  const [routeOpen,setRouteOpen]=useState(false);
   const [modal,setModal]=useState<'poem'|'library'|'settings'|null>(null),[sound,setSound]=useState(false),[tour,setTour]=useState(false),[fullscreen,setFullscreen]=useState(false);
   const [quality,setQuality]=useState(false),[reduce,setReduce]=useState(()=>matchMedia('(prefers-reduced-motion: reduce)').matches);
   const [toast,setToast]=useState(''),[speaking,setSpeaking]=useState(false),[joystick,setJoystick]=useState({x:0,y:0});
@@ -40,7 +41,7 @@ export default function App() {
       if(cancelled||!host.current)return;
       try {world.current=createWorld(host.current,{
         ready:()=>setReady(true),failure:()=>{setFailed(true);setReady(false);},tourEnd:()=>setTour(false),
-        discover:(i)=>{setFound(previous=>previous.includes(i)?previous:[...previous,i]);setActive(i);setToast(`寻得诗意 · ${landmarks[i].line}`);}
+        discover:(i)=>{setFound(previous=>previous.includes(i)?previous:[...previous,i]);}
       });}catch(error){console.error('Scene initialization failed',error);setFailed(true);}
     }).catch(()=>setFailed(true));
     return()=>{cancelled=true;world.current?.dispose();world.current=null;};
@@ -53,8 +54,8 @@ export default function App() {
   useEffect(()=>{world.current?.motion(reduce);},[reduce,ready]);
   useEffect(()=>{world.current?.pause(Boolean(modal));},[modal,ready]);
   const focusScene=()=>host.current?.querySelector('canvas')?.focus({preventScroll:true});
-  const changeMode=(next:Mode)=>{setMode(next);world.current?.mode(next);setTour(false);setActive(null);focusScene();};
-  const startTour=()=>{const on=!tour;setMode('walk');setTour(on);world.current?.tour(on);focusScene();};
+  const changeMode=(next:Mode)=>{setMode(next);world.current?.mode(next);setTour(false);setActive(null);setRouteOpen(false);focusScene();};
+  const startTour=()=>{const on=!tour;setMode('walk');setTour(on);setActive(null);setRouteOpen(false);world.current?.tour(on);focusScene();};
   const openModal=(next:typeof modal)=>{world.current?.tour(false);world.current?.input(0,0);setTour(false);setModal(next);};
   const visit=(index:number)=>{setActive(index);setTour(false);world.current?.go(index);focusScene();};
   const toggleSound=async()=>{try{if(!ambience.current)ambience.current=createAmbience();if(sound)await ambience.current.stop();else await ambience.current.start();setSound(!sound);}catch{setToast('当前浏览器暂不支持环境音。');}};
@@ -72,12 +73,12 @@ export default function App() {
   };
   const stopJoystick=()=>{setJoystick({x:0,y:0});world.current?.input(0,0);};
 
-  return <main className={`app ${mode==='walk'?'is-walking':''} ${reduce?'reduce-motion':''}`}>
+  return <main className={`app ${mode==='walk'?'is-walking':''} ${routeOpen?'route-open':''} ${reduce?'reduce-motion':''}`}>
     <div className="world" ref={host}/>
     <div className="scene-wash" aria-hidden="true"/><div className="paper-grain" aria-hidden="true"/>
     <header className="topbar">
       <button className="brand" onClick={()=>{changeMode('view');world.current?.reset();}} aria-label="诗境，返回全景"><span className="seal">诗<br/>境</span><span className="brand-name">诗境<span>SHIJING</span></span><span className="brand-divider"/><span className="brand-tagline">一诗一境，自在其间</span></button>
-      <nav aria-label="主导航"><button className="nav-button" onClick={()=>openModal('library')}><BookOpen size={16}/><span>诗境长卷</span></button><span className="nav-line"/><button className="icon-button" onClick={toggleSound} aria-label={sound?'关闭环境音':'开启环境音'} aria-pressed={sound}>{sound?<Volume2 size={18}/>:<VolumeX size={18}/>}</button><button className="icon-button" onClick={()=>openModal('settings')} aria-label="设置"><Settings2 size={18}/></button></nav>
+      <nav aria-label="主导航"><button className="nav-button" aria-label="诗境长卷" onClick={()=>openModal('library')}><BookOpen size={16}/><span>诗境长卷</span></button><span className="nav-line"/><button className="icon-button" onClick={toggleSound} aria-label={sound?'关闭环境音':'开启环境音'} aria-pressed={sound}>{sound?<Volume2 size={18}/>:<VolumeX size={18}/>}</button><button className="icon-button" onClick={()=>openModal('settings')} aria-label="设置"><Settings2 size={18}/></button></nav>
     </header>
 
       <section className="intro" aria-label="山居秋暝" inert={mode==='walk'} aria-hidden={mode==='walk'}>
@@ -97,11 +98,19 @@ export default function App() {
       <div className="view-controls"><button className="icon-button" onClick={()=>{world.current?.reset();setTour(false);setActive(null);focusScene();}} disabled={!ready} aria-label="重置视角"><RotateCcw size={18}/></button><button className="icon-button" onClick={toggleFullscreen} aria-label={fullscreen?'退出全屏':'进入全屏'}>{fullscreen?<Minimize size={18}/>:<Maximize size={18}/>}</button></div>
     </aside>
 
-    {mode==='walk'&&<div className="walk-status"><span className="live-dot"/>{tour?'循诗而行 · 自动漫游':'自在漫游'}<span className="walk-divider"/><span>{found.length} / 4 处诗意</span></div>}
+    {mode==='walk'&&<div className="walk-status sr-only" role="status">{tour?'循诗而行 · 自动漫游':'自在漫游'} · {found.length} / 4 处诗意</div>}
 
     {active!==null&&<section className="discovery-card" aria-label={landmarks[active].name}><button className="close-card icon-button" onClick={()=>setActive(null)} aria-label="收起诗意"><X size={15}/></button><div className="eyebrow">{found.includes(active)?'已寻得的诗意':'诗中一景'} · 0{active+1}</div><h2>{landmarks[active].line}<span>。</span></h2><p>{landmarks[active].description}</p>{!found.includes(active)&&mode==='view'&&<button className="text-button" onClick={()=>{changeMode('walk');world.current?.go(active);}}>走近此景 <ArrowRight size={14}/></button>}</section>}
 
-    <div className="bottom-ui">
+    {mode==='walk'&&<div className="wander-dock" role="group" aria-label="漫游控制">
+      <button className="icon-button" onClick={()=>changeMode('view')} aria-label="返回观景" title="返回观景"><ArrowLeft size={18}/></button>
+      <span className="dock-divider"/>
+      <button className="icon-button" onClick={startTour} aria-label={tour?'暂停漫游':'循诗而行'} title={tour?'暂停漫游':'循诗而行'} aria-pressed={tour}>{tour?<Pause size={18}/>:<Play size={18}/>}</button>
+      <button className="icon-button" onClick={()=>{setRouteOpen(!routeOpen);setActive(null);}} aria-label="沿途拾诗" title="沿途拾诗" aria-expanded={routeOpen} aria-controls="poetry-route"><Compass size={19}/>{found.length>0&&<span className="discovery-dot"/>}</button>
+      <button className="icon-button" onClick={()=>openModal('poem')} aria-label="阅读诗文" title="阅读诗文"><BookOpen size={18}/></button>
+    </div>}
+
+    <div className="bottom-ui" hidden={mode==='walk'&&!routeOpen} id="poetry-route">
       <div className="scene-toolbar"><div className="mode-switch" role="group" aria-label="探索方式"><button className={mode==='view'?'selected':''} disabled={!ready} onClick={()=>changeMode('view')} aria-pressed={mode==='view'}><Mountain size={16}/>观景</button><button className={mode==='walk'?'selected':''} disabled={!ready} onClick={()=>changeMode('walk')} aria-pressed={mode==='walk'}><Footprints size={16}/>漫游</button></div><span className="control-hint">{mode==='view'?'拖动环顾 · 滚轮缩放':'W A S D / 方向键行走 · 拖动环顾'}</span><button className={`tour-button ${tour?'tour-active':''}`} onClick={startTour} disabled={!ready} aria-pressed={tour}>{tour?<Pause size={14}/>:<Play size={14}/>}<span>{tour?'暂停漫游':'循诗而行'}</span></button></div>
       <div className="journey"><div className="journey-label"><Compass size={18}/><span>沿途拾诗<small>循一径，入四景</small></span></div><div className="landmarks">{landmarks.map((p,i)=><button key={p.id} className={`landmark ${active===i?'active':''} ${found.includes(i)?'discovered':''}`} disabled={!ready} onClick={()=>visit(i)} aria-label={`${p.name}，${p.line}${found.includes(i)?'，已发现':''}`}><span className="landmark-number">{found.includes(i)?<Check size={12}/>:String(i+1).padStart(2,'0')}</span><span className={`landmark-art art-${p.icon}`}>{i===0?<Moon/>:i===1?<Waves/>:i===2?<Leaf/>:<Navigation/>}</span><span className="landmark-text"><strong>{p.name}</strong><small>{p.line}</small></span><ArrowRight size={14} className="landmark-arrow"/></button>)}</div><div className="journey-end"><span>山水有清音</span><small>静听，慢行。</small></div></div>
       <footer><span><span className="live-dot"/> 可游可居的中国诗境</span><span>以诗为径 · 以心观景</span><span>第一卷 / 山水之间</span></footer>
@@ -114,7 +123,7 @@ export default function App() {
 
     {modal==='poem'&&<Modal title="山居秋暝" onClose={()=>setModal(null)}><div className="modal-author">唐 · 王维</div><div className="full-poem">{fullPoem.map(p=><p key={p}>{p}</p>)}</div><div className="poem-note"><span>诗中有画，画中有诗。</span><p>秋雨初歇，山中迎来清凉的暮色。明月、清泉、竹林与渔舟，构成了一幅宁静而富有生机的山居图景。此境依诗意创作，邀你在行走中体会那份悠然。</p></div><button className="outlined-button" onClick={narrate}>{speaking?<Pause size={16}/>:<Headphones size={16}/>} {speaking?'停止朗读':'听一遍诗文'}</button><small className="voice-note">使用设备中文语音朗读</small></Modal>}
     {modal==='library'&&<Modal title="诗境长卷" onClose={()=>setModal(null)}><p className="modal-lead">在字句之间，寻一处可以停留的山水。</p><div className="library-cards"><button className="library-card current" onClick={()=>{setModal(null);changeMode('view');world.current?.reset();}}><span className="library-landscape"><Mountain size={68}/><Moon size={24}/></span><small>第一境 · 王维</small><strong>山居秋暝</strong><span>新雨空山，明月清泉 <ArrowRight size={15}/></span><em>进入诗境</em></button><div className="library-card snow"><span className="library-landscape"><Mountain size={68}/></span><small>拟作 · 柳宗元</small><strong>江雪</strong><span>千山寂寥，一舟独钓</span><em>尚在构思</em></div><div className="library-card night"><span className="library-landscape"><Moon size={42}/></span><small>拟作 · 张继</small><strong>枫桥夜泊</strong><span>江枫渔火，夜半钟声</span><em>尚在构思</em></div></div></Modal>}
-    {modal==='settings'&&<Modal title="随心入境" onClose={()=>setModal(null)}><div className="setting-row"><span><strong>轻盈画质</strong><small>降低渲染分辨率，适合手机与节能使用</small></span><input type="checkbox" checked={quality} onChange={e=>setQuality(e.target.checked)} aria-label="轻盈画质"/></div><div className="setting-row"><span><strong>减少动态效果</strong><small>关闭水面、飞鸟与镜头过渡动画</small></span><input type="checkbox" checked={reduce} onChange={e=>setReduce(e.target.checked)} aria-label="减少动态效果"/></div><div className="settings-help"><h3>如何漫游</h3><p>电脑：W A S D 或方向键行走，拖动画面环顾，滚轮调整距离。</p><p>手机：左下摇杆行走，拖动画面环顾，双指缩放。</p><p>「循诗而行」带你依次走访四景。手动行走即可中止引导。点击沿途诗景可直接前往。</p><p>已寻得的诗意保存在本设备。当前进度：{found.length} / 4。</p></div></Modal>}
+    {modal==='settings'&&<Modal title="随心入境" onClose={()=>setModal(null)}><div className="setting-row"><span><strong>轻盈画质</strong><small>降低渲染分辨率，适合手机与节能使用</small></span><input type="checkbox" checked={quality} onChange={e=>setQuality(e.target.checked)} aria-label="轻盈画质"/></div><div className="setting-row"><span><strong>减少动态效果</strong><small>静止流水、草木、薄雾与飞鸟，关闭镜头过渡</small></span><input type="checkbox" checked={reduce} onChange={e=>setReduce(e.target.checked)} aria-label="减少动态效果"/></div><div className="settings-help"><h3>如何漫游</h3><p>电脑：W A S D 或方向键行走，拖动画面环顾，滚轮调整距离。</p><p>手机：左下摇杆行走，拖动画面环顾，双指缩放。</p><p>播放按钮开启「循诗而行」。手动行走即可中止引导。罗盘按钮展开沿途诗景，点选后前往并阅读。走近诗景会静静记录，不打断漫游。</p><p>已寻得的诗意保存在本设备。当前进度：{found.length} / 4。</p></div></Modal>}
     <a className="skip-link" href="#poem-accessible" onClick={()=>openModal('poem')}>阅读诗文</a><div id="poem-accessible" className="sr-only">山居秋暝，唐代王维。{fullPoem.join('')}</div>
   </main>;
 }

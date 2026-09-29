@@ -18,7 +18,7 @@ Open the local URL printed by Vite (normally http://127.0.0.1:5173).
 - **观景**: drag to orbit, scroll or pinch to zoom.
 - **入境漫游 / 漫游**: control a small traveler with WASD / arrow keys. On narrow screens, use the onscreen joystick. Drag to look around.
 - **循诗而行**: follow the four-landmark route automatically. Movement keys or joystick input cancel the guide.
-- Select a landmark in the bottom strip to view it; in walking mode this moves the traveler to it. Approaching a landmark reveals its verse.
+- Walking opens a quiet icon dock. Use its compass to reveal the optional landmark strip, then select a scene to travel there and read its verse. Approaching landmarks records discoveries silently, without pop-up notes. The book icon opens the full poem.
 - Discovered verses persist in localStorage on the current browser.
 - Read the complete poem, enable optional synthesized environmental sound, or use the device's Chinese speech voice to hear the poem. Voice availability depends on the device.
 - Settings offer reduced motion and lower rendering resolution. A readable poem and retry button remain available when WebGL cannot initialize.
@@ -31,7 +31,7 @@ npx playwright install chromium
 npm test
 ```
 
-The three browser tests cover desktop rendering, actual camera-relative keyboard movement, all four landmark arrivals, persistence after reload, poem/library dialogs, guide cancellation, a 390px mobile layout with joystick input, and a simulated WebGL failure.
+The four browser tests cover desktop rendering, actual camera-relative keyboard movement, all four landmark arrivals, persistence after reload, poem/library dialogs, guide cancellation, a 390px mobile layout with joystick input, a simulated WebGL failure, and visible environmental animation that freezes when reduced motion is enabled.
 
 Tests save desktop and mobile screenshots under `test-results/`. Those files are local verification artifacts, not production assets. The test browser requests reduced motion to stabilize visual capture. Headless rendering is not a benchmark for physical phone performance.
 
@@ -59,7 +59,7 @@ Key files: `src/world.ts` (scene and navigation), `src/App.tsx` (interface), `sr
 
 ## Current scope and limits
 
-The scene now uses a watercolor illustration treatment: continuous irregular ridges, pigment washes, smooth stones, thin grass blades, curved pine branches, and painted foliage. The foliage is arranged on intersecting textured planes, while terrain and branches retain true 3D depth. Close-up character animation and some architectural details remain deliberately simple. This is a watercolor-inspired browser scene, not a physical pigment simulation.
+The scene now uses a watercolor illustration treatment: continuous irregular ridges, pigment washes, smooth stones, wind-blown grass and fern colonies, bank reeds, curved pine branches, and painted foliage. Jade water carries drifting highlights and animated currents; soft river mist, falling leaves, and a gently rocking boat bring the landscape to life. These effects all respect reduced motion. The foliage is arranged on intersecting textured planes, while terrain and branches retain true 3D depth. Close-up character animation and some architectural details remain deliberately simple. This is a watercolor-inspired browser scene, not a physical pigment simulation.
 
 Walking is deliberately bounded to the east-bank route; terrain grounding and basic trunk avoidance are implemented. The bridge and pavilion are scenic objects, not additional accessible routes. Camera height avoids terrain but full mesh-based camera occlusion is not implemented. Guided motion and landmark travel work within this bounded route.
 
