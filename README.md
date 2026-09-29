@@ -21,6 +21,8 @@ Open the local URL printed by Vite (normally http://127.0.0.1:5173).
 - Walking opens a quiet icon dock. Use its compass to reveal the optional landmark strip, then select a scene to travel there and read its verse. Approaching landmarks records discoveries silently, without pop-up notes. The book icon opens the full poem.
 - Discovered verses persist in localStorage on the current browser.
 - Read the complete poem, enable optional synthesized environmental sound, or use the device's Chinese speech voice to hear the poem. Voice availability depends on the device.
+- **天色与天气** (the sun/cloud icon): choose dawn, day, dusk, or moonlit night; scrub the time slider; select clear, overcast, mist, or gentle rain. Lighting, foliage, water, sky, fog, sun/moon, and stars follow the selected atmosphere. Rain has animated streaks and a synthesized audio layer when sound is enabled.
+- **光阴流转**: an optional eight-minute day–night cycle. It pauses while the page is hidden, a reading dialog is open, or reduced motion is enabled. Manual time selection pauses the cycle. Reduced motion also hides moving rain streaks while retaining the rainy lighting and sound. Weather and selected time preferences are remembered on this device.
 - Settings offer reduced motion and lower rendering resolution. A readable poem and retry button remain available when WebGL cannot initialize.
 
 ## Build and test
@@ -31,7 +33,7 @@ npx playwright install chromium
 npm test
 ```
 
-The six tests cover desktop rendering, actual camera-relative keyboard movement, all four landmark arrivals, persistence after reload, poem/library dialogs, guide cancellation, a 390px mobile layout with joystick input, a simulated WebGL failure, visible environmental animation that freezes when reduced motion is enabled, first-person look controls without zoom, location-dependent audio balance, and actual audio output/muting.
+The tests cover desktop rendering, actual camera-relative keyboard movement, all four landmark arrivals, persistence after reload, poem/library dialogs, guide cancellation, a 390px mobile layout with joystick input, a simulated WebGL failure, visible environmental animation that freezes when reduced motion is enabled, first-person look controls without zoom, location-dependent audio balance, actual audio output/muting, time rollover, weather lighting profiles, rain sound, day/night rendering, and persisted environment preferences on desktop and mobile.
 
 Tests save desktop and mobile screenshots under `test-results/`. Those files are local verification artifacts, not production assets. The test browser requests reduced motion to stabilize visual capture. Headless rendering is not a benchmark for physical phone performance.
 
@@ -63,6 +65,6 @@ The scene now uses a watercolor illustration treatment: continuous irregular rid
 
 Walking is deliberately bounded to the east-bank route; terrain grounding and basic trunk avoidance are implemented. The bridge and pavilion are scenic objects, not additional accessible routes. The walking camera stays at eye height without head bob or a visible avatar. Dragging looks around from that fixed position; the guided route turns gently toward its next destination. Full mesh-based collision is not implemented. Guided motion and landmark travel work within this bounded route.
 
-Only《山居秋暝》is playable. The library labels《江雪》and《枫桥夜泊》as future concepts. There is no scene editor, account system, multiplayer, or AI scene generation. Audio is procedural sound design, not recorded nature: independently filtered river, wind, and bamboo-rustle layers fade with distance, and stereo placement follows the viewing direction. Audio requires an explicit user click and suspends in hidden tabs. Optional device speech reads the poem.
+Only《山居秋暝》is playable. The library labels《江雪》and《枫桥夜泊》as future concepts. There is no scene editor, account system, multiplayer, or AI scene generation. Audio is procedural sound design, not recorded nature: independently filtered river, wind, bamboo-rustle, and rain layers fade with distance, and stereo placement follows the viewing direction. Audio requires an explicit user click and suspends in hidden tabs. Optional device speech reads the poem.
 
 The supplied video analysis, original proposal, and reference screenshots remain in the local `reference-review/` folder, excluded from Git and deployment uploads.

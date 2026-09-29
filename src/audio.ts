@@ -1,4 +1,4 @@
-export type SoundPosition = { x:number; z:number; yaw:number; riverX:number };
+export type SoundPosition = { x:number; z:number; yaw:number; riverX:number; rain?:number };
 
 export function environmentMix(position:SoundPosition) {
   const {x,z,yaw,riverX}=position;
@@ -9,7 +9,8 @@ export function environmentMix(position:SoundPosition) {
     riverPan:pan(riverX-x,0),
     bamboo:.015+.38/(1+Math.pow(bambooDistance/9,2)),
     bambooPan:pan(19-x,-17-z),
-    wind:.16+.06*Math.min(1,distance/20),
+    wind:(.16+.06*Math.min(1,distance/20))*(1+(position.rain||0)*.35),
+    rain:Math.max(0,Math.min(1,position.rain||0))*.55,
   };
 }
 
@@ -37,11 +38,11 @@ export function createSoundscape(context:BaseAudioContext) {
     source.start();breeze.start();sources.push(source,breeze);
     return {level,panner};
   };
-  const river=layer('bandpass',950,.55,.17,.13),wind=layer('lowpass',650,.5,.075,.28),bamboo=layer('bandpass',2600,.7,.31,.35);
+  const river=layer('bandpass',950,.55,.17,.13),wind=layer('lowpass',650,.5,.075,.28),bamboo=layer('bandpass',2600,.7,.31,.35),rain=layer('highpass',1500,.5,.23,.07);
   const update=(position:SoundPosition)=>{
     const mix=environmentMix(position),time=context.currentTime;
     river.level.gain.setTargetAtTime(mix.river,time,.35);river.panner.pan.setTargetAtTime(mix.riverPan,time,.2);
-    wind.level.gain.setTargetAtTime(mix.wind,time,.7);
+    wind.level.gain.setTargetAtTime(mix.wind,time,.7);rain.level.gain.setTargetAtTime(mix.rain,time,.7);
     bamboo.level.gain.setTargetAtTime(mix.bamboo,time,.35);bamboo.panner.pan.setTargetAtTime(mix.bambooPan,time,.2);
   };
   update({x:13,z:27,yaw:.35,riverX:3});

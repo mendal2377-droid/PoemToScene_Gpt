@@ -3,9 +3,10 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { landmarks, type Mode } from './poem';
 import { createWatercolorMaterials, mountainRange, grassTuftGeometry, fernGeometry, addWind } from './watercolor';
 import type { SoundPosition } from './audio';
+import {createAtmosphere,type EnvironmentSettings} from './environment';
 
-export type WorldAPI = { mode: (mode: Mode) => void; go: (index: number) => void; reset: () => void; tour: (on: boolean) => void; quality: (low: boolean) => void; motion: (reduce: boolean) => void; pause: (on: boolean) => void; input: (x: number, y: number) => void; dispose: () => void };
-type Events = { ready: () => void; discover: (index: number) => void; tourEnd: () => void; failure: () => void; soundPosition: (position:SoundPosition) => void };
+export type WorldAPI = { environment: (settings:Partial<EnvironmentSettings>) => void; mode: (mode: Mode) => void; go: (index: number) => void; reset: () => void; tour: (on: boolean) => void; quality: (low: boolean) => void; motion: (reduce: boolean) => void; pause: (on: boolean) => void; input: (x: number, y: number) => void; dispose: () => void };
+type Events = { time: (hour:number) => void; ready: () => void; discover: (index: number) => void; tourEnd: () => void; failure: () => void; soundPosition: (position:SoundPosition) => void };
 export const riverX = (z: number) => Math.sin(z * .065) * 7 - 4;
 const height = (x: number, z: number) => {
   const bank = Math.max(0, Math.abs(x - riverX(z)) - 4.6);
@@ -34,7 +35,7 @@ export function createWorld(host: HTMLDivElement, events: Events): WorldAPI {
   controls.minDistance = 5; controls.maxDistance = 125;
   controls.enablePan = false;
   controls.addEventListener('change',()=>{dirty=true;});
-  scene.add(new T.HemisphereLight('#eef5dc', '#345c44', 1.7));
+  const hemisphere=new T.HemisphereLight('#eef5dc', '#345c44', 1.7);scene.add(hemisphere);
   const sunlight = new T.DirectionalLight('#fff1d8', 1.15);
   sunlight.position.set(-35, 65, -20); scene.add(sunlight);
   const fill = new T.DirectionalLight('#96bab0', .7); fill.position.set(30, 12, 40); scene.add(fill);
@@ -103,12 +104,12 @@ export function createWorld(host: HTMLDivElement, events: Events): WorldAPI {
   const currentPositions=ripples.geometry.attributes.position;
 
   // Transparent, softly feathered bands drift just above the distant river.
-  const mistMat=new T.ShaderMaterial({transparent:true,depthWrite:false,side:T.DoubleSide,uniforms:{uTime:environmentTime},vertexShader:'varying vec2 vUv; void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',fragmentShader:`
-    uniform float uTime; varying vec2 vUv;
+  const mistMat=new T.ShaderMaterial({transparent:true,depthWrite:false,side:T.DoubleSide,uniforms:{uTime:environmentTime,uMistOpacity:{value:.13},uMistTint:{value:new T.Color('#c2dbba')}},vertexShader:'varying vec2 vUv; void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',fragmentShader:`
+    uniform float uTime; uniform float uMistOpacity; uniform vec3 uMistTint; varying vec2 vUv;
     void main(){
       float edge=pow(max(0.0, sin(vUv.x*3.14159)*sin(vUv.y*3.14159)),2.0);
       float wisp=.55+.45*sin(vUv.x*19.0+sin(vUv.y*10.0)+uTime*.16);
-      gl_FragColor=vec4(.76,.86,.73,edge*wisp*.13);
+      gl_FragColor=vec4(uMistTint,edge*wisp*uMistOpacity);
     }`});
   for(let i=0;i<5;i++){const mist=mesh(new T.PlaneGeometry(35,4),mistMat);mist.position.set(riverX(-20-i*17),1.5+i*.3,-20-i*17);}
 
@@ -263,6 +264,8 @@ export function createWorld(host: HTMLDivElement, events: Events): WorldAPI {
   const birds=new T.Group();scene.add(birds);
   for(let i=0;i<7;i++) {const geo=new T.BufferGeometry().setFromPoints([new T.Vector3(-.5,0,0),new T.Vector3(0,-.16,.05),new T.Vector3(.5,0,0)]);const b=new T.Line(geo,new T.LineBasicMaterial({color:'#536e63'}));b.position.set(i*2,Math.sin(i)*.7,i*.8);birds.add(b);}
 
+  const atmosphere=createAtmosphere({scene,camera,renderer,hemisphere,sunlight,fill,moon,foliage:foliageMat,water:waterMat,ripples:rippleMat,mist:mistMat});
+
   let mode:Mode='view',autoTour=false,tourTarget=0,tourPause=0,reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
   const eyeHeight=1.65;
   let yaw=.35,pitch=0,lookOverride=0,soundTimer=0;
@@ -317,6 +320,7 @@ export function createWorld(host: HTMLDivElement, events: Events): WorldAPI {
     frame=requestAnimationFrame(animate);
     if(document.hidden||paused||!artReady){previous=0;return;}
     const dt=previous?Math.min((now-previous)/1000,.05):0;previous=now;elapsed+=dt;
+    if(atmosphere.tick(dt,reduced,events.time))dirty=true;
     if(!reduced){
       environmentTime.value+=dt;
       const time=environmentTime.value;
@@ -346,7 +350,7 @@ export function createWorld(host: HTMLDivElement, events: Events): WorldAPI {
     if(mode==='view')controls.update();
     soundTimer+=dt;
     if(soundTimer>.15){soundTimer=0;camera.getWorldDirection(direction);const position=mode==='walk'?player.position:camera.position;
-      events.soundPosition({x:position.x,z:position.z,yaw:Math.atan2(-direction.x,-direction.z),riverX:riverX(position.z)});
+      events.soundPosition({x:position.x,z:position.z,yaw:Math.atan2(-direction.x,-direction.z),riverX:riverX(position.z),rain:atmosphere.weather()==='rain'?1:0});
     }
     if(!reduced||dirty){renderer.render(scene,camera);dirty=false;}
   };
@@ -360,6 +364,7 @@ export function createWorld(host: HTMLDivElement, events: Events): WorldAPI {
     dirty=true;
   };
   return {
+    environment:(settings)=>{events.time(atmosphere.set(settings,reduced));dirty=true;},
     mode:setMode,
     go:(index)=>{const p=landmarks[index];if(!p)return;stopTour();if(mode==='walk'){
       player.position.set(Math.max(p.x,riverX(p.z)+7.4),height(Math.max(p.x,riverX(p.z)+7.4),p.z),p.z);
@@ -368,9 +373,9 @@ export function createWorld(host: HTMLDivElement, events: Events): WorldAPI {
     reset:()=>{stopTour();player.position.set(riverX(27)+10,height(riverX(27)+10,27),27);setMode(mode);},
     tour:(on)=>{autoTour=on;tourTarget=0;tourPause=0;if(on){setMode('walk');autoTour=true;}},
     quality:(low)=>{renderer.setPixelRatio(low?1:Math.min(window.devicePixelRatio,1.6));dirty=true;},
-    motion:(reduce)=>{reduced=reduce;controls.enableDamping=!reduce;dirty=true;},
+    motion:(reduce)=>{reduced=reduce;controls.enableDamping=!reduce;atmosphere.set({},reduce);dirty=true;},
     pause:(on)=>{paused=on;if(on)clear();dirty=true;},
     input:(x,y)=>{touch={x,y};if(x||y)stopTour();},
-    dispose:()=>{disposed=true;cancelAnimationFrame(frame);observer.disconnect();window.removeEventListener('keydown',onKey);window.removeEventListener('keyup',onUp);window.removeEventListener('blur',clear);lookUp();renderer.domElement.removeEventListener('pointerdown',lookDown);renderer.domElement.removeEventListener('pointermove',lookMove);renderer.domElement.removeEventListener('pointerup',lookUp);renderer.domElement.removeEventListener('pointercancel',lookUp);renderer.domElement.removeEventListener('lostpointercapture',lookUp);controls.dispose();renderer.domElement.removeEventListener('webglcontextlost',onLost);const geos=new Set<T.BufferGeometry>(),mats=new Set<T.Material>();scene.traverse(o=>{if(o instanceof T.Mesh||o instanceof T.Line){geos.add(o.geometry);(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>mats.add(m));}});geos.forEach(g=>g.dispose());mats.forEach(m=>m.dispose());foliageTexture.dispose();paints.dispose();renderer.dispose();renderer.domElement.remove();}
+    dispose:()=>{disposed=true;cancelAnimationFrame(frame);observer.disconnect();window.removeEventListener('keydown',onKey);window.removeEventListener('keyup',onUp);window.removeEventListener('blur',clear);lookUp();renderer.domElement.removeEventListener('pointerdown',lookDown);renderer.domElement.removeEventListener('pointermove',lookMove);renderer.domElement.removeEventListener('pointerup',lookUp);renderer.domElement.removeEventListener('pointercancel',lookUp);renderer.domElement.removeEventListener('lostpointercapture',lookUp);controls.dispose();renderer.domElement.removeEventListener('webglcontextlost',onLost);const geos=new Set<T.BufferGeometry>(),mats=new Set<T.Material>();scene.traverse(o=>{if(o instanceof T.Mesh||o instanceof T.Line||o instanceof T.Points){geos.add(o.geometry);(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>mats.add(m));}});geos.forEach(g=>g.dispose());mats.forEach(m=>m.dispose());foliageTexture.dispose();paints.dispose();renderer.dispose();renderer.domElement.remove();}
   };
 }
