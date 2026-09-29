@@ -1,0 +1,68 @@
+# 诗境 · 山居秋暝
+
+A playable Chinese poetry landscape inspired by the supplied interaction reference. One complete scene is implemented: 王维《山居秋暝》.
+
+## Run locally
+
+Use Node.js 22.12+ or 24 and npm.
+
+```sh
+npm install
+npm run dev
+```
+
+Open the local URL printed by Vite (normally http://127.0.0.1:5173).
+
+## Explore
+
+- **观景**: drag to orbit, scroll or pinch to zoom.
+- **入境漫游 / 漫游**: control a small traveler with WASD / arrow keys. On narrow screens, use the onscreen joystick. Drag to look around.
+- **循诗而行**: follow the four-landmark route automatically. Movement keys or joystick input cancel the guide.
+- Select a landmark in the bottom strip to view it; in walking mode this moves the traveler to it. Approaching a landmark reveals its verse.
+- Discovered verses persist in localStorage on the current browser.
+- Read the complete poem, enable optional synthesized environmental sound, or use the device's Chinese speech voice to hear the poem. Voice availability depends on the device.
+- Settings offer reduced motion and lower rendering resolution. A readable poem and retry button remain available when WebGL cannot initialize.
+
+## Build and test
+
+```sh
+npm run build
+npx playwright install chromium
+npm test
+```
+
+The three browser tests cover desktop rendering, actual camera-relative keyboard movement, all four landmark arrivals, persistence after reload, poem/library dialogs, guide cancellation, a 390px mobile layout with joystick input, and a simulated WebGL failure.
+
+Tests save desktop and mobile screenshots under `test-results/`. Those files are local verification artifacts, not production assets. The test browser requests reduced motion to stabilize visual capture. Headless rendering is not a benchmark for physical phone performance.
+
+## Vercel
+
+The app is configured for Vercel in `vercel.json`:
+
+- Framework: Vite
+- Install command: `npm ci`
+- Build command: `npm run build`
+- Output directory: `dist`
+- Environment variables: none
+
+Import this project through a Git repository in Vercel, or run `npx vercel` from an authenticated terminal to create a preview. The Vercel project is named `poemtoscene-gpt`. Deployment status and the public URL are reported after the production deployment is verified. It uses a single page with no path-based client routing, so no catch-all rewrite is necessary.
+
+## Implementation
+
+- React and TypeScript manage the reading interface and experience state.
+- Three.js directly manages the scene, camera, instanced vegetation, water, and movement inside a React-owned lifecycle. The initial plan suggested React Three Fiber; direct Three.js keeps this procedural first scene in a single independently disposable renderer.
+- Terrain, connected mountain ridges, branches, rocks, and character meshes are generated in code. Watercolor materials sample pigment noise in world space. Painted pine foliage uses an original transparent image generated with the built-in image-generation tool; its prompt history is in `public/art/ASSET-NOTES.md`. There are no remote font requests, runtime API calls, or required service keys.
+- Repeated vegetation and rocks use instanced geometry. Rendering pauses while the document is hidden or a reading/settings dialog is open. Reduced-motion mode skips unchanged frames. Device pixel ratio is capped, and renderer resources are disposed when the scene unmounts.
+- The source poem is public-domain text; scene interpretation and explanatory copy were created for this prototype. The reference video is not shipped with the application.
+
+Key files: `src/world.ts` (scene and navigation), `src/App.tsx` (interface), `src/poem.ts` (poem and landmarks), `src/style.css` (responsive design), and `tests/experience.spec.ts` (browser verification).
+
+## Current scope and limits
+
+The scene now uses a watercolor illustration treatment: continuous irregular ridges, pigment washes, smooth stones, thin grass blades, curved pine branches, and painted foliage. The foliage is arranged on intersecting textured planes, while terrain and branches retain true 3D depth. Close-up character animation and some architectural details remain deliberately simple. This is a watercolor-inspired browser scene, not a physical pigment simulation.
+
+Walking is deliberately bounded to the east-bank route; terrain grounding and basic trunk avoidance are implemented. The bridge and pavilion are scenic objects, not additional accessible routes. Camera height avoids terrain but full mesh-based camera occlusion is not implemented. Guided motion and landmark travel work within this bounded route.
+
+Only《山居秋暝》is playable. The library labels《江雪》and《枫桥夜泊》as future concepts. There is no scene editor, account system, multiplayer, or AI scene generation. Audio is a synthesized ambient bed plus optional device speech, not a studio recording.
+
+The supplied video analysis, original proposal, and reference screenshots remain in the local `reference-review/` folder, excluded from Git and deployment uploads.

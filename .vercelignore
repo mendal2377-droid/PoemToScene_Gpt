@@ -1,0 +1,10 @@
+reference-review/
+.video-tools/
+test-results/
+node_modules/
+dist/
+.git/
+tests/
+playwright.config.ts
+*.tsbuildinfo
+.env*

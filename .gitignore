@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.video-tools/
+.vercel/
+*.tsbuildinfo
+test-results/
+reference-review/
+.env
+.env.*
+!.env.example
+*.log
