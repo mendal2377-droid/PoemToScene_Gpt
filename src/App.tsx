@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ArrowDown, ArrowLeft, ArrowRight, BookOpen, Check, ChevronRight, Compass, Footprints, Headphones, Leaf, Maximize, Minimize, Moon, Mountain, Navigation, Pause, Play, RotateCcw, Settings2, Volume2, VolumeX, Waves, X } from 'lucide-react';
 import { fullPoem, landmarks, type Mode } from './poem';
 import type { WorldAPI } from './world';
-import { createAmbience } from './audio';
+import { createAmbience, type SoundPosition } from './audio';
 
 const storeKey='shijing-discoveries-v1';
 function readProgress():number[] { try { const v=JSON.parse(localStorage.getItem(storeKey)||'[]');return Array.isArray(v)?v.filter((i:unknown)=>typeof i==='number'&&i>=0&&i<4):[]; } catch { return []; } }
@@ -35,13 +35,15 @@ export default function App() {
   const [quality,setQuality]=useState(false),[reduce,setReduce]=useState(()=>matchMedia('(prefers-reduced-motion: reduce)').matches);
   const [toast,setToast]=useState(''),[speaking,setSpeaking]=useState(false),[joystick,setJoystick]=useState({x:0,y:0});
   const joystickRef=useRef<HTMLDivElement>(null);
+  const soundPosition=useRef<SoundPosition>({x:13,z:27,yaw:.35,riverX:3});
   useEffect(()=>{
     let cancelled=false;setReady(false);setFailed(false);
     import('./world').then(({createWorld})=>{
       if(cancelled||!host.current)return;
       try {world.current=createWorld(host.current,{
         ready:()=>setReady(true),failure:()=>{setFailed(true);setReady(false);},tourEnd:()=>setTour(false),
-        discover:(i)=>{setFound(previous=>previous.includes(i)?previous:[...previous,i]);}
+        discover:(i)=>{setFound(previous=>previous.includes(i)?previous:[...previous,i]);},
+        soundPosition:(position)=>{soundPosition.current=position;ambience.current?.update(position);}
       });}catch(error){console.error('Scene initialization failed',error);setFailed(true);}
     }).catch(()=>setFailed(true));
     return()=>{cancelled=true;world.current?.dispose();world.current=null;};
@@ -58,7 +60,7 @@ export default function App() {
   const startTour=()=>{const on=!tour;setMode('walk');setTour(on);setActive(null);setRouteOpen(false);world.current?.tour(on);focusScene();};
   const openModal=(next:typeof modal)=>{world.current?.tour(false);world.current?.input(0,0);setTour(false);setModal(next);};
   const visit=(index:number)=>{setActive(index);setTour(false);world.current?.go(index);focusScene();};
-  const toggleSound=async()=>{try{if(!ambience.current)ambience.current=createAmbience();if(sound)await ambience.current.stop();else await ambience.current.start();setSound(!sound);}catch{setToast('当前浏览器暂不支持环境音。');}};
+  const toggleSound=async()=>{try{if(!ambience.current)ambience.current=createAmbience();ambience.current.update(soundPosition.current);if(sound)await ambience.current.stop();else await ambience.current.start();setSound(!sound);}catch{setToast('当前浏览器暂不支持环境音。');}};
   const narrate=()=>{
     if(!('speechSynthesis' in window)){setToast('当前浏览器不支持朗读，你仍可阅读完整诗文。');return;}
     if(speaking){speechSynthesis.cancel();setSpeaking(false);return;}
@@ -123,7 +125,7 @@ export default function App() {
 
     {modal==='poem'&&<Modal title="山居秋暝" onClose={()=>setModal(null)}><div className="modal-author">唐 · 王维</div><div className="full-poem">{fullPoem.map(p=><p key={p}>{p}</p>)}</div><div className="poem-note"><span>诗中有画，画中有诗。</span><p>秋雨初歇，山中迎来清凉的暮色。明月、清泉、竹林与渔舟，构成了一幅宁静而富有生机的山居图景。此境依诗意创作，邀你在行走中体会那份悠然。</p></div><button className="outlined-button" onClick={narrate}>{speaking?<Pause size={16}/>:<Headphones size={16}/>} {speaking?'停止朗读':'听一遍诗文'}</button><small className="voice-note">使用设备中文语音朗读</small></Modal>}
     {modal==='library'&&<Modal title="诗境长卷" onClose={()=>setModal(null)}><p className="modal-lead">在字句之间，寻一处可以停留的山水。</p><div className="library-cards"><button className="library-card current" onClick={()=>{setModal(null);changeMode('view');world.current?.reset();}}><span className="library-landscape"><Mountain size={68}/><Moon size={24}/></span><small>第一境 · 王维</small><strong>山居秋暝</strong><span>新雨空山，明月清泉 <ArrowRight size={15}/></span><em>进入诗境</em></button><div className="library-card snow"><span className="library-landscape"><Mountain size={68}/></span><small>拟作 · 柳宗元</small><strong>江雪</strong><span>千山寂寥，一舟独钓</span><em>尚在构思</em></div><div className="library-card night"><span className="library-landscape"><Moon size={42}/></span><small>拟作 · 张继</small><strong>枫桥夜泊</strong><span>江枫渔火，夜半钟声</span><em>尚在构思</em></div></div></Modal>}
-    {modal==='settings'&&<Modal title="随心入境" onClose={()=>setModal(null)}><div className="setting-row"><span><strong>轻盈画质</strong><small>降低渲染分辨率，适合手机与节能使用</small></span><input type="checkbox" checked={quality} onChange={e=>setQuality(e.target.checked)} aria-label="轻盈画质"/></div><div className="setting-row"><span><strong>减少动态效果</strong><small>静止流水、草木、薄雾与飞鸟，关闭镜头过渡</small></span><input type="checkbox" checked={reduce} onChange={e=>setReduce(e.target.checked)} aria-label="减少动态效果"/></div><div className="settings-help"><h3>如何漫游</h3><p>电脑：W A S D 或方向键行走，拖动画面环顾，滚轮调整距离。</p><p>手机：左下摇杆行走，拖动画面环顾，双指缩放。</p><p>播放按钮开启「循诗而行」。手动行走即可中止引导。罗盘按钮展开沿途诗景，点选后前往并阅读。走近诗景会静静记录，不打断漫游。</p><p>已寻得的诗意保存在本设备。当前进度：{found.length} / 4。</p></div></Modal>}
+    {modal==='settings'&&<Modal title="随心入境" onClose={()=>setModal(null)}><div className="setting-row"><span><strong>轻盈画质</strong><small>降低渲染分辨率，适合手机与节能使用</small></span><input type="checkbox" checked={quality} onChange={e=>setQuality(e.target.checked)} aria-label="轻盈画质"/></div><div className="setting-row"><span><strong>减少动态效果</strong><small>静止流水、草木、薄雾与飞鸟，关闭镜头过渡</small></span><input type="checkbox" checked={reduce} onChange={e=>setReduce(e.target.checked)} aria-label="减少动态效果"/></div><div className="settings-help"><h3>如何漫游</h3><p>漫游以诗人眼睛的高度看世界。电脑：W A S D 或方向键行走，拖动画面转头。</p><p>手机：左下摇杆行走，拖动画面转头。观景模式仍可缩放。</p><p>播放按钮开启「循诗而行」。手动行走即可中止引导。罗盘按钮展开沿途诗景，点选后前往并阅读。走近诗景会静静记录，不打断漫游。</p><h3>环境声音</h3><p>水流、山风与竹叶声由程序合成，并非实地自然录音。水声随距离与朝向变化，走近竹林时叶声渐浓；戴耳机可听见方向。</p><p>已寻得的诗意保存在本设备。当前进度：{found.length} / 4。</p></div></Modal>}
     <a className="skip-link" href="#poem-accessible" onClick={()=>openModal('poem')}>阅读诗文</a><div id="poem-accessible" className="sr-only">山居秋暝，唐代王维。{fullPoem.join('')}</div>
   </main>;
 }

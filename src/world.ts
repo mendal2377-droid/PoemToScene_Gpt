@@ -2,9 +2,10 @@ import * as T from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { landmarks, type Mode } from './poem';
 import { createWatercolorMaterials, mountainRange, grassTuftGeometry, fernGeometry, addWind } from './watercolor';
+import type { SoundPosition } from './audio';
 
 export type WorldAPI = { mode: (mode: Mode) => void; go: (index: number) => void; reset: () => void; tour: (on: boolean) => void; quality: (low: boolean) => void; motion: (reduce: boolean) => void; pause: (on: boolean) => void; input: (x: number, y: number) => void; dispose: () => void };
-type Events = { ready: () => void; discover: (index: number) => void; tourEnd: () => void; failure: () => void };
+type Events = { ready: () => void; discover: (index: number) => void; tourEnd: () => void; failure: () => void; soundPosition: (position:SoundPosition) => void };
 export const riverX = (z: number) => Math.sin(z * .065) * 7 - 4;
 const height = (x: number, z: number) => {
   const bank = Math.max(0, Math.abs(x - riverX(z)) - 4.6);
@@ -263,6 +264,29 @@ export function createWorld(host: HTMLDivElement, events: Events): WorldAPI {
   for(let i=0;i<7;i++) {const geo=new T.BufferGeometry().setFromPoints([new T.Vector3(-.5,0,0),new T.Vector3(0,-.16,.05),new T.Vector3(.5,0,0)]);const b=new T.Line(geo,new T.LineBasicMaterial({color:'#536e63'}));b.position.set(i*2,Math.sin(i)*.7,i*.8);birds.add(b);}
 
   let mode:Mode='view',autoTour=false,tourTarget=0,tourPause=0,reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const eyeHeight=1.65;
+  let yaw=.35,pitch=0,lookOverride=0,soundTimer=0;
+  let lookPointer:{id:number;x:number;y:number}|null=null;
+  const eyeCamera=()=>{
+    camera.position.copy(player.position);camera.position.y+=eyeHeight;
+    camera.rotation.set(pitch,yaw,0,'YXZ');dirty=true;
+  };
+  const lookDown=(event:PointerEvent)=>{
+    if(mode!=='walk'||paused||event.button!==0||lookPointer)return;
+    renderer.domElement.focus({preventScroll:true});
+    lookPointer={id:event.pointerId,x:event.clientX,y:event.clientY};renderer.domElement.setPointerCapture(event.pointerId);
+  };
+  const lookMove=(event:PointerEvent)=>{
+    if(!lookPointer||event.pointerId!==lookPointer.id||mode!=='walk'||paused)return;
+    yaw-=(event.clientX-lookPointer.x)*.003;pitch=T.MathUtils.clamp(pitch-(event.clientY-lookPointer.y)*.003,-1.15,1.15);
+    lookPointer.x=event.clientX;lookPointer.y=event.clientY;lookOverride=5;eyeCamera();
+  };
+  const lookUp=(event?:PointerEvent)=>{
+    if(!lookPointer||(event&&event.pointerId!==lookPointer.id))return;
+    const id=lookPointer.id;lookPointer=null;if(renderer.domElement.hasPointerCapture(id))renderer.domElement.releasePointerCapture(id);
+  };
+  renderer.domElement.addEventListener('pointerdown',lookDown);renderer.domElement.addEventListener('pointermove',lookMove);
+  renderer.domElement.addEventListener('pointerup',lookUp);renderer.domElement.addEventListener('pointercancel',lookUp);renderer.domElement.addEventListener('lostpointercapture',lookUp);
   let keys=new Set<string>(),touch={x:0,y:0},frame=0,previous=0,elapsed=0,checkTimer=0;
   let transition:{pos:T.Vector3;target:T.Vector3}|null=null;
   const found=new Set<number>();
@@ -275,7 +299,7 @@ export function createWorld(host: HTMLDivElement, events: Events): WorldAPI {
     if(['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)){e.preventDefault();keys.add(e.code);stopTour();}
   };
   const onUp=(e:KeyboardEvent)=>keys.delete(e.code);
-  const clear=()=>{keys.clear();touch={x:0,y:0};previous=0;};
+  const clear=()=>{keys.clear();touch={x:0,y:0};previous=0;lookUp();};
   window.addEventListener('keydown',onKey);window.addEventListener('keyup',onUp);window.addEventListener('blur',clear);
   const resize=()=>{const {width,height:h}=host.getBoundingClientRect();camera.aspect=width/h;camera.updateProjectionMatrix();renderer.setSize(width,h);dirty=true;};
   const observer=new ResizeObserver(resize);observer.observe(host);resize();
@@ -302,40 +326,51 @@ export function createWorld(host: HTMLDivElement, events: Events): WorldAPI {
       currentPositions.needsUpdate=true;updateLeaves(time);
     }
     if(mode==='walk') {
-      const old=player.position.clone();
+      const old=player.position.clone(),oldYaw=yaw;lookOverride=Math.max(0,lookOverride-dt);
       if(autoTour) {
         const target=landmarks[tourTarget],tx=Math.max(target.x,riverX(target.z)+7.4),delta=new T.Vector2(tx-player.position.x,target.z-player.position.z);
         if(delta.length()<1.4){tourPause+=dt;if(tourPause>4){tourPause=0;tourTarget++;if(tourTarget>=landmarks.length)stopTour();}}
-        else {delta.normalize();movePlayer(delta.x,delta.y,dt*.65);}
+        else {delta.normalize();movePlayer(delta.x,delta.y,dt*.65);
+          if(!lookOverride){const targetYaw=Math.atan2(-delta.x,-delta.y);yaw+=Math.atan2(Math.sin(targetYaw-yaw),Math.cos(targetYaw-yaw))*(1-Math.exp(-dt*2));}
+        }
       } else {
         const vertical=(keys.has('KeyW')||keys.has('ArrowUp')?1:0)-(keys.has('KeyS')||keys.has('ArrowDown')?1:0)-touch.y;
         const horizontal=(keys.has('KeyD')||keys.has('ArrowRight')?1:0)-(keys.has('KeyA')||keys.has('ArrowLeft')?1:0)+touch.x;
         camera.getWorldDirection(direction);direction.y=0;direction.normalize();right.crossVectors(direction,up).normalize();
         direction.multiplyScalar(vertical).addScaledVector(right,horizontal);if(direction.length()>1)direction.normalize();movePlayer(direction.x,direction.z,dt);
       }
-      const delta=player.position.clone().sub(old);camera.position.add(delta);controls.target.copy(player.position).add(new T.Vector3(0,1,0));
-      camera.position.y=Math.max(camera.position.y,height(camera.position.x,camera.position.z)+1.8);
+      if(!player.position.equals(old)||yaw!==oldYaw)eyeCamera();
       checkTimer+=dt;if(checkTimer>.25){checkTimer=0;discoverAtPlayer();}
     }
     if(transition){const factor=reduced?1:1-Math.exp(-dt*3);camera.position.lerp(transition.pos,factor);controls.target.lerp(transition.target,factor);if(camera.position.distanceTo(transition.pos)<.05)transition=null;}
-    controls.update();if(!reduced||dirty){renderer.render(scene,camera);dirty=false;}
+    if(mode==='view')controls.update();
+    soundTimer+=dt;
+    if(soundTimer>.15){soundTimer=0;camera.getWorldDirection(direction);const position=mode==='walk'?player.position:camera.position;
+      events.soundPosition({x:position.x,z:position.z,yaw:Math.atan2(-direction.x,-direction.z),riverX:riverX(position.z)});
+    }
+    if(!reduced||dirty){renderer.render(scene,camera);dirty=false;}
   };
   sceneReady=true;frame=requestAnimationFrame(animate);
   const setMode=(next:Mode)=>{
-    mode=next;keys.clear();touch={x:0,y:0};player.visible=next==='walk';transition=null;
-    if(next==='walk'){controls.minDistance=4;controls.maxDistance=17;camera.position.copy(player.position).add(new T.Vector3(6,4.8,11));controls.target.copy(player.position).add(new T.Vector3(0,1,0));}
-    else{stopTour();controls.minDistance=12;controls.maxDistance=125;transition={pos:initialCamera.clone(),target:initialTarget.clone()};}
-    controls.update();
+    mode=next;keys.clear();touch={x:0,y:0};player.visible=false;transition=null;lookUp();
+    controls.enabled=next==='view';camera.fov=next==='walk'?65:43;camera.updateProjectionMatrix();
+    renderer.domElement.setAttribute('aria-label',next==='walk'?'诗人第一人称视角，拖动环顾，方向键行走':'山居秋暝三维山水，拖动环顾，滚轮缩放');
+    if(next==='walk'){yaw=.35;pitch=0;lookOverride=0;eyeCamera();}
+    else{stopTour();controls.minDistance=12;controls.maxDistance=125;controls.target.copy(initialTarget);transition={pos:initialCamera.clone(),target:initialTarget.clone()};controls.update();}
+    dirty=true;
   };
   return {
     mode:setMode,
-    go:(index)=>{const p=landmarks[index];if(!p)return;stopTour();if(mode==='walk'){player.position.set(Math.max(p.x,riverX(p.z)+7.4),height(Math.max(p.x,riverX(p.z)+7.4),p.z),p.z);camera.position.copy(player.position).add(new T.Vector3(6,4.8,11));controls.target.copy(player.position).add(new T.Vector3(0,1,0));discoverAtPlayer();}else{transition={pos:new T.Vector3(p.x+18,16,p.z+22),target:new T.Vector3(p.x,2,p.z)};}},
+    go:(index)=>{const p=landmarks[index];if(!p)return;stopTour();if(mode==='walk'){
+      player.position.set(Math.max(p.x,riverX(p.z)+7.4),height(Math.max(p.x,riverX(p.z)+7.4),p.z),p.z);
+      const focusX=index===0?20:index===2?19:riverX(p.z);yaw=Math.atan2(player.position.x-focusX,4);pitch=0;eyeCamera();discoverAtPlayer();
+    }else{transition={pos:new T.Vector3(p.x+18,16,p.z+22),target:new T.Vector3(p.x,2,p.z)};}},
     reset:()=>{stopTour();player.position.set(riverX(27)+10,height(riverX(27)+10,27),27);setMode(mode);},
     tour:(on)=>{autoTour=on;tourTarget=0;tourPause=0;if(on){setMode('walk');autoTour=true;}},
     quality:(low)=>{renderer.setPixelRatio(low?1:Math.min(window.devicePixelRatio,1.6));dirty=true;},
     motion:(reduce)=>{reduced=reduce;controls.enableDamping=!reduce;dirty=true;},
-    pause:(on)=>{paused=on;dirty=true;},
+    pause:(on)=>{paused=on;if(on)clear();dirty=true;},
     input:(x,y)=>{touch={x,y};if(x||y)stopTour();},
-    dispose:()=>{disposed=true;cancelAnimationFrame(frame);observer.disconnect();window.removeEventListener('keydown',onKey);window.removeEventListener('keyup',onUp);window.removeEventListener('blur',clear);controls.dispose();renderer.domElement.removeEventListener('webglcontextlost',onLost);const geos=new Set<T.BufferGeometry>(),mats=new Set<T.Material>();scene.traverse(o=>{if(o instanceof T.Mesh||o instanceof T.Line){geos.add(o.geometry);(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>mats.add(m));}});geos.forEach(g=>g.dispose());mats.forEach(m=>m.dispose());foliageTexture.dispose();paints.dispose();renderer.dispose();renderer.domElement.remove();}
+    dispose:()=>{disposed=true;cancelAnimationFrame(frame);observer.disconnect();window.removeEventListener('keydown',onKey);window.removeEventListener('keyup',onUp);window.removeEventListener('blur',clear);lookUp();renderer.domElement.removeEventListener('pointerdown',lookDown);renderer.domElement.removeEventListener('pointermove',lookMove);renderer.domElement.removeEventListener('pointerup',lookUp);renderer.domElement.removeEventListener('pointercancel',lookUp);renderer.domElement.removeEventListener('lostpointercapture',lookUp);controls.dispose();renderer.domElement.removeEventListener('webglcontextlost',onLost);const geos=new Set<T.BufferGeometry>(),mats=new Set<T.Material>();scene.traverse(o=>{if(o instanceof T.Mesh||o instanceof T.Line){geos.add(o.geometry);(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>mats.add(m));}});geos.forEach(g=>g.dispose());mats.forEach(m=>m.dispose());foliageTexture.dispose();paints.dispose();renderer.dispose();renderer.domElement.remove();}
   };
 }

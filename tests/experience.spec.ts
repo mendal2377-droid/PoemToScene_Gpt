@@ -1,12 +1,12 @@
 import { test, expect } from '@playwright/test';
 
 test('desktop: renders, walks, discovers all verses, and persists progress',async({page})=>{
+  test.setTimeout(240000); // Several software-rendered camera captures and a full reload.
   const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
   page.on('console',message=>{if(message.type()==='error')errors.push(message.text());});
   await page.goto('/');
-  await expect(page.getByRole('button',{name:'入境漫游',exact:true})).toBeEnabled({timeout:30000});
+  await expect(page.getByRole('button',{name:'入境漫游',exact:true})).toBeEnabled({timeout:60000});
   await expect(page.locator('canvas')).toBeVisible();
-  await page.screenshot({path:'test-results/desktop.png'});
   await page.getByRole('button',{name:'设置',exact:true}).click();
   await page.getByRole('checkbox',{name:'减少动态效果'}).check();
   await page.getByRole('button',{name:'关闭',exact:true}).click();
@@ -14,21 +14,24 @@ test('desktop: renders, walks, discovers all verses, and persists progress',asyn
   await expect(page.locator('.walk-status')).toContainText('自在漫游');
   await expect(page.locator('.bottom-ui')).toBeHidden();
   await expect(page.locator('.discovery-card')).toHaveCount(0);
-  await page.screenshot({path:'test-results/quiet-walking.png'});
-  const before=await page.locator('canvas').screenshot();
+  await expect(page.locator('canvas')).toHaveAttribute('aria-label',/第一人称/);
+  const before=await page.locator('canvas').screenshot({path:'test-results/quiet-walking.png'});
+  await page.mouse.move(720,450);await page.mouse.wheel(0,-1000);await page.waitForTimeout(200);
+  expect(before.equals(await page.locator('canvas').screenshot())).toBeTruthy();
+  await page.mouse.down();await page.mouse.move(850,490,{steps:5});await page.mouse.up();
+  const turned=await page.locator('canvas').screenshot();expect(before.equals(turned)).toBeFalsy();
   await page.keyboard.down('w');await page.waitForTimeout(1100);await page.keyboard.up('w');
-  const after=await page.locator('canvas').screenshot();expect(before.equals(after)).toBeFalsy();
+  const after=await page.locator('canvas').screenshot();expect(turned.equals(after)).toBeFalsy();
   await page.getByRole('button',{name:'沿途拾诗',exact:true}).click();
   for(const name of ['松间月','石上泉','竹林语','莲下舟']){
     await page.getByRole('button',{name:new RegExp(`^${name}，`)}).click();
     await expect(page.getByRole('button',{name:new RegExp(`^${name}，.*已发现`)})).toBeVisible();
   }
   await expect(page.locator('.walk-status')).toContainText('4 / 4');
-  await page.screenshot({path:'test-results/walking.png'});
   await page.getByRole('button',{name:'沿途拾诗',exact:true}).click();
   await expect(page.locator('.bottom-ui')).toBeHidden();
   await expect(page.locator('.discovery-card')).toHaveCount(0);
-  await page.reload();await expect(page.getByRole('button',{name:'入境漫游',exact:true})).toBeEnabled();
+  await page.reload();await expect(page.getByRole('button',{name:'入境漫游',exact:true})).toBeEnabled({timeout:60000});
   await expect(page.locator('.landmark.discovered')).toHaveCount(4);
   await page.getByRole('button',{name:'读一读这首诗'}).click();
   await expect(page.getByRole('dialog')).toContainText('随意春芳歇，王孙自可留。');
@@ -45,7 +48,7 @@ test('desktop: renders, walks, discovers all verses, and persists progress',asyn
 
 test('mobile: fits viewport, exposes movement controls and usable poetry dialog',async({page})=>{
   await page.setViewportSize({width:390,height:844});
-  await page.goto('/');await expect(page.getByRole('button',{name:'入境漫游',exact:true})).toBeEnabled({timeout:30000});
+  await page.goto('/');await expect(page.getByRole('button',{name:'入境漫游',exact:true})).toBeEnabled({timeout:60000});
   expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBe(390);
   await page.screenshot({path:'test-results/mobile.png'});
   await page.getByRole('button',{name:'入境漫游',exact:true}).click();
@@ -76,7 +79,7 @@ test('the environment moves at rest and reduced motion freezes it',async({page})
   page.on('console',message=>{if(message.type()==='error')errors.push(message.text());});
   await page.emulateMedia({reducedMotion:'no-preference'});
   await page.goto('/');
-  await expect(page.getByRole('button',{name:'入境漫游',exact:true})).toBeEnabled({timeout:30000});
+  await expect(page.getByRole('button',{name:'入境漫游',exact:true})).toBeEnabled({timeout:60000});
   await page.getByRole('button',{name:'入境漫游',exact:true}).click();
   const moving=await page.locator('canvas').screenshot();
   await page.waitForTimeout(900);
