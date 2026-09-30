@@ -28,7 +28,7 @@ function Modal({title,children,onClose,className=''}:{title:string;children:Reac
   return <div className="modal-backdrop" onClick={e=>{if(e.target===e.currentTarget)onClose();}}><div ref={ref} className={`modal ${className}`} role="dialog" aria-modal="true" aria-label={title}><div className="modal-top"><span className="eyebrow">SHIJING · 诗境</span><button className="icon-button" onClick={onClose} aria-label="关闭"><X size={20}/></button></div><h2>{title}</h2>{children}</div></div>;
 }
 
-function LiteraryCollection({scene,onSelect}:{scene:SceneDefinition;onSelect:(scene:SceneDefinition)=>void}) {
+function LiteraryCollection({scene,onSelect}:{scene?:SceneDefinition;onSelect:(scene:SceneDefinition)=>void}) {
   const strip=useRef<HTMLDivElement>(null);
   const [edges,setEdges]=useState({start:true,end:false});
   const measure=()=>{const el=strip.current;if(el)setEdges({start:el.scrollLeft<4,end:el.scrollLeft+el.clientWidth>=el.scrollWidth-4});};
@@ -44,17 +44,17 @@ function LiteraryCollection({scene,onSelect}:{scene:SceneDefinition;onSelect:(sc
   };
   return <>
     <div ref={strip} id="literary-collection" className="library-cards" onScroll={measure}>
-      {scenes.map((item,index)=><button key={item.id} className={`library-card ${item.id} ${item.id===scene.id?'current':''}`}
-        aria-label={`${item.chapter} · ${item.author} · ${item.title}`} aria-current={item.id===scene.id?'true':undefined} onClick={()=>onSelect(item)}>
+      {scenes.map((item,index)=><button key={item.id} className={`library-card ${item.id} ${item.id===scene?.id?'current':''}`}
+        aria-label={`${item.chapter} · ${item.author} · ${item.title}`} aria-current={item.id===scene?.id?'true':undefined} onClick={()=>onSelect(item)}>
         <span className="library-landscape" style={{backgroundPosition:`${index*25}% center`}} aria-hidden="true">
           <span className="library-number">0{index+1}</span>
-          {item.id===scene.id&&<span className="library-current"><span/>此刻所在</span>}
+          {item.id===scene?.id&&<span className="library-current"><span/>此刻所在</span>}
         </span>
         <span className="library-copy">
           <small>{item.era} · {item.author}<span>{item.kind}</span></small>
           <strong>{item.title}</strong>
           <span className="library-theme">{item.theme}</span>
-          <em>{item.id===scene.id?'回到此境':'进入此境'}<ArrowRight size={16}/></em>
+          <em>{item.id===scene?.id?'回到此境':'进入此境'}<ArrowRight size={16}/></em>
         </span>
       </button>)}
     </div>
@@ -66,8 +66,17 @@ function LiteraryCollection({scene,onSelect}:{scene:SceneDefinition;onSelect:(sc
 
 export default function App(){
   const [scene,setScene]=useState(readScene);
+  useEffect(()=>{if(!scene)document.title='诗境 · 择一境，慢行';},[scene]);
   const [sound,setSound]=useState(false),[quality,setQuality]=useState(false),[reduce,setReduce]=useState(()=>matchMedia('(prefers-reduced-motion: reduce)').matches);
   const selectScene=(next:SceneDefinition)=>{try{localStorage.setItem(sceneKey,next.id);}catch{/* Optional persistence. */}setScene(next);};
+  if(!scene)return <main className="welcome-screen">
+    <section className="modal library-modal welcome-collection" aria-labelledby="welcome-title">
+      <div className="modal-top"><span className="eyebrow">SHIJING · 诗境</span><span className="welcome-motto">一诗一境，自在其间</span></div>
+      <h1 id="welcome-title">择一境，慢行</h1>
+      <p className="modal-lead">三首诗，两篇记。选一处心之所向，开启你的山水之旅。</p>
+      <LiteraryCollection onSelect={selectScene}/>
+    </section>
+  </main>;
   return <SceneApp key={scene.id} scene={scene} selectScene={selectScene} sound={sound} setSound={setSound} quality={quality} setQuality={setQuality} reduce={reduce} setReduce={setReduce}/>;
 }
 function SceneApp({scene,selectScene,sound,setSound,quality,setQuality,reduce,setReduce}:{scene:SceneDefinition;selectScene:(scene:SceneDefinition)=>void;sound:boolean;setSound:(value:boolean)=>void;quality:boolean;setQuality:(value:boolean)=>void;reduce:boolean;setReduce:(value:boolean)=>void}) {

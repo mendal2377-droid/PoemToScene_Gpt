@@ -25,7 +25,8 @@ export const getScene=(id:unknown)=>scenes.find(scene=>scene.id===id)||scenes[0]
 export const sceneKey='shijing-scene-v1';
 export const progressKey=(id:SceneId)=>id==='autumn'?'shijing-discoveries-v1':`shijing-discoveries-${id}-v1`;
 export const sceneEnvironmentKey=(id:SceneId)=>id==='autumn'?'shijing-environment-v1':`shijing-environment-${id}-v1`;
-export function readScene():SceneDefinition {try{return getScene(localStorage.getItem(sceneKey));}catch{return scenes[0];}}
+// A missing or retired scene opens the welcome collection instead of choosing for the visitor.
+export function readScene():SceneDefinition|null {try{return scenes.find(scene=>scene.id===localStorage.getItem(sceneKey))||null;}catch{return null;}}
 /** Shelter follows the walkable path; weather stays outside the rock passages. */
 export function shelterAt(id:SceneId,x:number,z:number){
  const center=Math.sin(z*.065)*7+6;

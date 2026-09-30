@@ -23,7 +23,7 @@ test('sound starts only when enabled, produces a signal, and can be muted',async
     };
   });
   await page.setViewportSize({width:900,height:700});
-  await page.goto('/');
+  await page.goto('/');await page.getByRole('button',{name:/第一境 · 王维/}).click();
   await expect(page.getByRole('button',{name:'入境漫游',exact:true})).toBeEnabled({timeout:60000});
   expect(await page.evaluate(()=>Boolean((window as typeof window & {soundTest?:unknown}).soundTest))).toBeFalsy();
   await page.getByRole('button',{name:'开启环境音',exact:true}).click();

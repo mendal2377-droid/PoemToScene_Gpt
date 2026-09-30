@@ -4,7 +4,7 @@ test('desktop: renders, walks, discovers all verses, and persists progress',asyn
   test.setTimeout(240000); // Several software-rendered camera captures and a full reload.
   const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
   page.on('console',message=>{if(message.type()==='error')errors.push(message.text());});
-  await page.goto('/');
+  await page.goto('/');await page.getByRole('button',{name:/第一境 · 王维/}).click();
   await expect(page.getByRole('button',{name:'入境漫游',exact:true})).toBeEnabled({timeout:60000});
   await expect(page.locator('canvas')).toBeVisible();
   await page.getByRole('button',{name:'设置',exact:true}).click();
@@ -48,7 +48,7 @@ test('desktop: renders, walks, discovers all verses, and persists progress',asyn
 
 test('mobile: fits viewport, exposes movement controls and usable poetry dialog',async({page})=>{
   await page.setViewportSize({width:390,height:844});
-  await page.goto('/');await expect(page.getByRole('button',{name:'入境漫游',exact:true})).toBeEnabled({timeout:60000});
+  await page.goto('/');await page.getByRole('button',{name:/第一境 · 王维/}).click();await expect(page.getByRole('button',{name:'入境漫游',exact:true})).toBeEnabled({timeout:60000});
   expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBe(390);
   await page.screenshot({path:'test-results/mobile.png'});
   await page.getByRole('button',{name:'入境漫游',exact:true}).click();
@@ -68,7 +68,7 @@ test('mobile: fits viewport, exposes movement controls and usable poetry dialog'
 
 test('WebGL failure leaves a readable poem and recovery action',async({page})=>{
   await page.addInitScript(()=>{const original=HTMLCanvasElement.prototype.getContext;HTMLCanvasElement.prototype.getContext=function(type:string,...args:unknown[]){if(type.includes('webgl'))return null;return original.apply(this,[type,...args] as never);} as typeof original;});
-  await page.goto('/');await expect(page.getByRole('heading',{name:'山色暂未展开'})).toBeVisible();
+  await page.goto('/');await page.getByRole('button',{name:/第一境 · 王维/}).click();await expect(page.getByRole('heading',{name:'山色暂未展开'})).toBeVisible();
   await expect(page.locator('.fallback')).toContainText('明月松间照，清泉石上流。');
   await expect(page.getByRole('button',{name:'重新载入'})).toBeVisible();
 });
@@ -78,7 +78,7 @@ test('the environment moves at rest and reduced motion freezes it',async({page})
   page.on('pageerror',error=>errors.push(error.message));
   page.on('console',message=>{if(message.type()==='error')errors.push(message.text());});
   await page.emulateMedia({reducedMotion:'no-preference'});
-  await page.goto('/');
+  await page.goto('/');await page.getByRole('button',{name:/第一境 · 王维/}).click();
   await expect(page.getByRole('button',{name:'入境漫游',exact:true})).toBeEnabled({timeout:60000});
   await page.getByRole('button',{name:'入境漫游',exact:true}).click();
   const moving=await page.locator('canvas').screenshot();

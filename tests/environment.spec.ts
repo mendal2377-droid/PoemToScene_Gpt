@@ -32,7 +32,7 @@ test('weather panel changes the rendered scene, persists choices, and fits mobil
   await page.setViewportSize({width:1000,height:720});
   await page.emulateMedia({reducedMotion:'no-preference'});
   const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
-  await page.goto('/');await expect(page.getByRole('button',{name:'入境漫游',exact:true})).toBeEnabled({timeout:60000});
+  await page.goto('/');await page.getByRole('button',{name:/第一境 · 王维/}).click();await expect(page.getByRole('button',{name:'入境漫游',exact:true})).toBeEnabled({timeout:60000});
   await page.getByRole('button',{name:'入境漫游',exact:true}).click();
   await page.getByRole('button',{name:'天色与天气',exact:true}).click();
   const panel=page.getByRole('dialog',{name:'天色与天气'});

@@ -20,7 +20,7 @@ test('switch all new scenes, walk their routes, read prose, and preserve separat
  test.setTimeout(360000);
  await page.setViewportSize({width:1100,height:760});
  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
- await page.goto('/');await expect(page.getByRole('button',{name:'入境漫游',exact:true})).toBeEnabled({timeout:60000});
+ await page.goto('/');await page.getByRole('button',{name:/第一境 · 王维/}).click();await expect(page.getByRole('button',{name:'入境漫游',exact:true})).toBeEnabled({timeout:60000});
  await page.getByRole('button',{name:'设置',exact:true}).click();await page.getByRole('checkbox',{name:'减少动态效果'}).check();await page.getByRole('button',{name:'关闭',exact:true}).click();
  for(const scene of scenes.slice(1)){
   await page.getByRole('button',{name:'诗境长卷',exact:true}).click();
@@ -65,7 +65,7 @@ test('switch all new scenes, walk their routes, read prose, and preserve separat
 
 test('mobile collection and long prose fit; each soundscape renders audible unclipped audio',async({page})=>{
  test.setTimeout(180000);await page.setViewportSize({width:390,height:844});
- await page.goto('/');await expect(page.getByRole('button',{name:'入境漫游',exact:true})).toBeEnabled({timeout:60000});
+ await page.goto('/');await page.getByRole('button',{name:/第一境 · 王维/}).click();await expect(page.getByRole('button',{name:'入境漫游',exact:true})).toBeEnabled({timeout:60000});
  await page.getByRole('button',{name:'开启环境音',exact:true}).click();
  await page.getByRole('button',{name:'诗境长卷',exact:true}).click();
  await expect(page.locator('.library-card')).toHaveCount(5);await page.screenshot({path:'test-results/collection-mobile.png'});
