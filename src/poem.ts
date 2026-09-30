@@ -6,3 +6,4 @@ export const landmarks = [
 ] as const;
 export const fullPoem = ['空山新雨后，天气晚来秋。','明月松间照，清泉石上流。','竹喧归浣女，莲动下渔舟。','随意春芳歇，王孙自可留。'];
 export type Mode = 'view' | 'walk';
+export type Landmark={id:string;name:string;line:string;pair:string;x:number;z:number;description:string;icon:string};

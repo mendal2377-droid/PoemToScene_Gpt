@@ -40,7 +40,7 @@ test('desktop: renders, walks, discovers all verses, and persists progress',asyn
   await expect(page.locator('.walk-status')).toContainText('自动漫游');
   await page.keyboard.press('ArrowUp');await expect(page.locator('.walk-status')).toContainText('自在漫游');
   await page.getByRole('button',{name:'诗境长卷'}).click();
-  await expect(page.getByRole('dialog')).toContainText('尚在构思');
+  await expect(page.getByRole('dialog')).toContainText('游褒禅山记');
   await page.getByRole('button',{name:/第一境 · 王维/}).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   expect(errors).toEqual([]);

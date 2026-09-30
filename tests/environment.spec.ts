@@ -8,7 +8,7 @@ test('time wraps continuously and pauses for reduced motion',()=>{
   expect(advanceHour(18,60,true,true)).toBe(18);
   expect(advanceHour(18,60,false,false)).toBe(18);
   expect(clockLabel(6.5)).toBe('06:30');
-  expect(normalizeEnvironment({hour:NaN,weather:'snow',cycling:'yes'})).toEqual({hour:18,weather:'clear',cycling:false});
+  expect(normalizeEnvironment({hour:NaN,weather:'hail',cycling:'yes'})).toEqual({hour:18,weather:'clear',cycling:false});
   const end=environmentFrame(23.999,'clear'),start=environmentFrame(0,'clear');
   expect(end.sky.r).toBeCloseTo(start.sky.r,3);
 });
@@ -21,7 +21,7 @@ test('weather and light profiles remain distinct and usable',()=>{
   const position={x:7,z:0,yaw:0,riverX:0};
   expect(environmentMix({...position,rain:1}).rain).toBeGreaterThan(0);
   expect(environmentMix(position).rain).toBe(0);
-  for(let hour=0;hour<24;hour+=.25)for(const weather of ['clear','cloudy','mist','rain'] as const){
+  for(let hour=0;hour<24;hour+=.25)for(const weather of ['clear','cloudy','mist','rain','snow'] as const){
     const frame=environmentFrame(hour,weather);
     for(const value of [frame.sun,frame.ambient,frame.exposure,frame.fog,frame.sky.r,frame.sky.g,frame.sky.b])expect(Number.isFinite(value)&&value>=0).toBeTruthy();
   }
