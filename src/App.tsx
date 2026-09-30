@@ -5,11 +5,11 @@ import {scenes,readScene,sceneKey,progressKey,sceneEnvironmentKey,type SceneDefi
 import type { WorldAPI } from './world';
 import { createAmbience, type SoundPosition } from './audio';
 import {readEnvironment,weatherOptions,timeOptions,clockLabel,type EnvironmentSettings} from './environment';
-import {CloudSun,Sun,Cloud,CloudFog,CloudRain,Sunrise,Sunset,Snowflake,Flower2,Flame} from 'lucide-react';
+import {CloudSun,Sun,Cloud,CloudFog,CloudRain,Sunrise,Sunset,Snowflake} from 'lucide-react';
 
 function readProgress(storeKey:string):number[] { try { const v=JSON.parse(localStorage.getItem(storeKey)||'[]');return Array.isArray(v)?Array.from(new Set<number>(v.filter((i:unknown)=>typeof i==='number'&&Number.isInteger(i)&&i>=0&&i<4))):[]; } catch { return []; } }
 
-function Modal({title,children,onClose}:{title:string;children:ReactNode;onClose:()=>void}) {
+function Modal({title,children,onClose,className=''}:{title:string;children:ReactNode;onClose:()=>void;className?:string}) {
   const ref=useRef<HTMLDivElement>(null),close=useRef(onClose);close.current=onClose;
   useEffect(()=>{
     const previous=document.activeElement as HTMLElement;
@@ -17,7 +17,7 @@ function Modal({title,children,onClose}:{title:string;children:ReactNode;onClose
     const key=(e:KeyboardEvent)=>{
       if(e.key==='Escape')close.current();
       if(e.key==='Tab'){
-        const elements=ref.current?.querySelectorAll<HTMLElement>('button,input,select,a[href],[tabindex="0"]');
+        const elements=Array.from(ref.current?.querySelectorAll<HTMLElement>('button:not(:disabled),input:not(:disabled),select:not(:disabled),a[href],[tabindex="0"]')||[]).filter(el=>el.getClientRects().length>0);
         if(!elements?.length)return;const first=elements[0],last=elements[elements.length-1];
         if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}
         if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}
@@ -25,7 +25,43 @@ function Modal({title,children,onClose}:{title:string;children:ReactNode;onClose
     };
     document.addEventListener('keydown',key);return()=>{document.removeEventListener('keydown',key);previous?.focus();};
   },[]);
-  return <div className="modal-backdrop" onClick={e=>{if(e.target===e.currentTarget)onClose();}}><div ref={ref} className="modal" role="dialog" aria-modal="true" aria-label={title}><div className="modal-top"><span className="eyebrow">SHIJING · 诗境</span><button className="icon-button" onClick={onClose} aria-label="关闭"><X size={20}/></button></div><h2>{title}</h2>{children}</div></div>;
+  return <div className="modal-backdrop" onClick={e=>{if(e.target===e.currentTarget)onClose();}}><div ref={ref} className={`modal ${className}`} role="dialog" aria-modal="true" aria-label={title}><div className="modal-top"><span className="eyebrow">SHIJING · 诗境</span><button className="icon-button" onClick={onClose} aria-label="关闭"><X size={20}/></button></div><h2>{title}</h2>{children}</div></div>;
+}
+
+function LiteraryCollection({scene,onSelect}:{scene:SceneDefinition;onSelect:(scene:SceneDefinition)=>void}) {
+  const strip=useRef<HTMLDivElement>(null);
+  const [edges,setEdges]=useState({start:true,end:false});
+  const measure=()=>{const el=strip.current;if(el)setEdges({start:el.scrollLeft<4,end:el.scrollLeft+el.clientWidth>=el.scrollWidth-4});};
+  useEffect(()=>{
+    const el=strip.current;if(!el)return;
+    const observer=new ResizeObserver(measure);observer.observe(el);measure();
+    return()=>observer.disconnect();
+  },[]);
+  const turn=(direction:number)=>{
+    const el=strip.current;if(!el)return;
+    const card=el.querySelector<HTMLElement>('.library-card');
+    el.scrollBy({left:direction*((card?.offsetWidth||el.clientWidth)+16),behavior:'auto'});
+  };
+  return <>
+    <div ref={strip} id="literary-collection" className="library-cards" onScroll={measure}>
+      {scenes.map((item,index)=><button key={item.id} className={`library-card ${item.id} ${item.id===scene.id?'current':''}`}
+        aria-label={`${item.chapter} · ${item.author} · ${item.title}`} aria-current={item.id===scene.id?'true':undefined} onClick={()=>onSelect(item)}>
+        <span className="library-landscape" style={{backgroundPosition:`${index*25}% center`}} aria-hidden="true">
+          <span className="library-number">0{index+1}</span>
+          {item.id===scene.id&&<span className="library-current"><span/>此刻所在</span>}
+        </span>
+        <span className="library-copy">
+          <small>{item.era} · {item.author}<span>{item.kind}</span></small>
+          <strong>{item.title}</strong>
+          <span className="library-theme">{item.theme}</span>
+          <em>{item.id===scene.id?'回到此境':'进入此境'}<ArrowRight size={16}/></em>
+        </span>
+      </button>)}
+    </div>
+    <div className="library-footer"><span>第一卷 <i/> 山水之间</span><span className="library-invitation">展卷入山水，择一境慢行。</span>
+      <div className="library-paging"><span>横向展卷</span><button className="icon-button" aria-label="向前展卷" aria-controls="literary-collection" disabled={edges.start} onClick={()=>turn(-1)}><ArrowLeft size={17}/></button><button className="icon-button" aria-label="向后展卷" aria-controls="literary-collection" disabled={edges.end} onClick={()=>turn(1)}><ArrowRight size={17}/></button></div>
+    </div>
+  </>;
 }
 
 export default function App(){
@@ -154,7 +190,10 @@ function SceneApp({scene,selectScene,sound,setSound,quality,setQuality,reduce,se
     <div className="toast" role="status" aria-live="polite">{toast&&<span><Leaf size={15}/>{toast}</span>}</div>
 
     {modal==='poem'&&<Modal title={scene.title} onClose={()=>{window.speechSynthesis?.cancel();setSpeaking(false);setModal(null);}}><div className="modal-author">{scene.era} · {scene.author} · {scene.kind}</div><div className={`full-poem ${scene.kind==='记'?'prose':''}`}>{fullPoem.map(p=><p key={p}>{p}</p>)}</div><div className="poem-note"><span>{scene.theme}</span><p>{scene.note}</p><a href={scene.source} target="_blank" rel="noreferrer">原文出处 · 维基文库 ↗</a></div><button className="outlined-button" onClick={narrate}>{speaking?<Pause size={16}/>:<Headphones size={16}/>} {speaking?'停止朗读':'听一遍诗文'}</button><small className="voice-note">使用设备中文语音朗读</small></Modal>}
-    {modal==='library'&&<Modal title="诗境长卷" onClose={()=>setModal(null)}><p className="modal-lead">同一山水，不同心境。三首诗，两篇记，五段可以慢行的光阴。</p><div className="library-cards">{scenes.map(item=><button key={item.id} className={`library-card ${item.id} ${item.id===scene.id?'current':''}`} aria-label={`${item.chapter} · ${item.author} · ${item.title}`} aria-current={item.id===scene.id?'true':undefined} onClick={()=>{if(item.id===scene.id){setModal(null);changeMode('view');world.current?.reset();}else selectScene(item);}}><span className="library-landscape">{item.id==='snow'?<Snowflake size={60}/>:item.id==='maple'?<Moon size={52}/>:item.id==='peach'?<Flower2 size={62}/>:item.id==='cave'?<Flame size={56}/>:<Mountain size={68}/>}</span><small>{item.chapter} · {item.author} · {item.kind}</small><strong>{item.title}</strong><span>{item.theme}</span><p className="library-sound">{item.sound}</p><em>{item.id===scene.id?'此刻所在':'进入此境'} <ArrowRight size={13}/></em></button>)}</div></Modal>}
+    {modal==='library'&&<Modal title="诗境长卷" className="library-modal" onClose={()=>setModal(null)}>
+      <p className="modal-lead">三首诗，两篇记。循文字，入山水。</p>
+      <LiteraryCollection scene={scene} onSelect={item=>{if(item.id===scene.id){setModal(null);changeMode('view');world.current?.reset();}else selectScene(item);}}/>
+    </Modal>}
     {modal==='settings'&&<Modal title="随心入境" onClose={()=>setModal(null)}><div className="setting-row"><span><strong>轻盈画质</strong><small>降低渲染分辨率，适合手机与节能使用</small></span><input type="checkbox" checked={quality} onChange={e=>setQuality(e.target.checked)} aria-label="轻盈画质"/></div><div className="setting-row"><span><strong>减少动态效果</strong><small>静止流水、草木与雨丝，暂停昼夜流转和镜头过渡</small></span><input type="checkbox" checked={reduce} onChange={e=>setReduce(e.target.checked)} aria-label="减少动态效果"/></div><div className="settings-help"><h3>如何漫游</h3><p>漫游以诗人眼睛的高度看世界。电脑：W A S D 或方向键行走，拖动画面转头。</p><p>手机：左下摇杆行走，拖动画面转头。观景模式仍可缩放。</p><p>播放按钮开启「循诗而行」。手动行走即可中止引导。罗盘按钮展开沿途诗景，点选后前往并阅读。走近诗景会静静记录，不打断漫游。</p><h3>环境声音</h3><p>{scene.sound}声音由程序合成，并非实地自然录音。水声与场景声随位置、朝向和天气变化；洞内收起风雨，留下水滴回响与近身火声。戴耳机可听见方向。</p><p>已寻得的诗意保存在本设备。当前进度：{found.length} / 4。</p></div></Modal>}
     <a className="skip-link" href="#poem-accessible" onClick={()=>openModal('poem')}>阅读诗文</a><div id="poem-accessible" className="sr-only">{scene.title}，{scene.era}代{scene.author}。{fullPoem.join('')}</div>
   </main>;
