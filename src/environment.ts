@@ -70,10 +70,13 @@ export function createAtmosphere(objects:AtmosphereObjects,id:SceneId='autumn'){
   const apply=(factor:number)=>{
     const f=environmentFrame(hour,settings.weather);
     if(id==='snow'){
-      f.sky.lerp(new T.Color('#d6e0df').lerp(new T.Color('#263844'),f.night),.65);f.water.lerp(new T.Color('#617f8b'),.8);f.fog=Math.max(f.fog,.014);
+      f.sky.lerp(new T.Color('#d6e0df').lerp(new T.Color('#263844'),f.night),.65);f.water.lerp(new T.Color('#617f8b'),.8);f.fog=Math.max(f.fog,.009);
     }
-    if(id==='peach'||id==='maple')f.leaf.set('#ffffff').lerp(new T.Color('#314354'),f.night*.85);
-    if(id==='maple')f.water.lerp(new T.Color('#29434f'),.5);
+    if(id==='peach'||id==='maple')f.leaf.set(id==='peach'?'#e5d5c5':'#e0d6c2').lerp(new T.Color('#314354'),f.night*.85);
+    if(id==='maple'){f.water.lerp(new T.Color('#223e52'),.7);f.fog*=.7;f.mist*=.5;}
+    if(id==='peach'){f.sky.lerp(new T.Color('#eee2c8').lerp(new T.Color('#314556'),f.night),.26);f.water.lerp(new T.Color('#8cb6a4'),.3);f.fog*=.7;f.light.lerp(new T.Color('#ffe8c0'),(1-f.night)*.25);}
+    if(id==='cave'){f.sky.lerp(new T.Color('#a9b9bc').lerp(new T.Color('#283844'),f.night),.45);f.water.lerp(new T.Color('#91aaa3'),.7);f.leaf.multiplyScalar(.83);f.fog*=.6;f.ambient*=.83;}
+    if(id==='autumn'){f.water.lerp(new T.Color('#5e9b86'),.25);f.leaf.multiplyScalar(.9);}
     // Rock shelters retain their own darkness even when noon or rain is selected.
     const enclosed=shelter*(id==='cave'?1:.75);
     f.sky.lerp(new T.Color('#202b2d'),enclosed);f.ambient=T.MathUtils.lerp(f.ambient,.06,enclosed);

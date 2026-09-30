@@ -20,6 +20,17 @@
 @media(max-width:800px) and (max-height:720px){.is-walking .discovery-card{top:140px;bottom:auto;width:auto;max-height:170px;overflow:auto}}
 
 /* The landscape takes over during a walk. Poetry stays one deliberate tap away. */
+.scene-peach .scene-wash{background:linear-gradient(90deg,#f0eadbee,#eee8d4b0 19%,transparent 48%),linear-gradient(0deg,#e4e4cddd,transparent 24%,transparent 85%,#f0e9d650)}
+.scene-cave .scene-wash{background:linear-gradient(90deg,#e3e5ddeF,#dde1d9a0 19%,transparent 44%),linear-gradient(0deg,#d4dbd4d9,transparent 24%,transparent 88%,#dbe2dd44)}
+.scene-snow .scene-wash{background:linear-gradient(90deg,#e9eef0f0,#e6edef88 19%,transparent 45%),linear-gradient(0deg,#e0e7e9de,transparent 24%)}
+.scene-maple .scene-wash{background:linear-gradient(90deg,#182b37ed,#1e344399 20%,transparent 48%),linear-gradient(0deg,#152b3ade,transparent 28%)}
+.scene-maple .intro,.scene-maple .brand,.scene-maple .topbar nav,.scene-maple .scene-caption,.scene-maple .weather{color:#e3dfcb}
+.scene-maple .chapter,.scene-maple .intro-description,.scene-maple .read-link,.scene-maple .brand-tagline,.scene-maple .weather small{color:#c0cabc}
+.scene-maple .intro-poem{border-color:#b0bfa377}
+.scene-maple .control-hint{color:#c0cabc;text-shadow:none}
+.scene-maple .tour-button{background:#e7ecddcf;color:#344c42;border-radius:3px}
+.scene-cave .scene-caption{color:#cbd7c8;text-shadow:0 1px 5px #263d3280}
+.scene-maple.is-walking .topbar nav{color:#344c42}
 .is-walking .scene-wash{background:radial-gradient(ellipse at 50% 45%,transparent 45%,#173e2924 100%)}
 .is-walking .paper-grain{opacity:.035}
 .is-walking .topbar{height:78px;border:0;pointer-events:none}

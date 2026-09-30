@@ -1,14 +1,14 @@
 # 诗境 · 山水长卷
 
-A playable collection of three poems and two classical prose works. Open **诗境长卷** to move between five landscapes; each has four discoverable passages, its full original text, optional narration, its own weather/time preferences and separately saved discoveries.
+A playable collection of three poems and two classical prose works. First-time visitors choose from five watercolor panels before 3D loads; later visits resume their saved scene. Open **诗境长卷** to move between five landscapes; each has four discoverable passages, its full original text, optional narration, its own weather/time preferences and separately saved discoveries.
 
 | Work | Landscape and mood | Sound design |
 | --- | --- | --- |
 | 王维《山居秋暝》 | Green pine valley after rain; quiet, inhabited nature | Stream, wind, nearby bamboo |
-| 柳宗元《江雪》 | Snow, bare branches, empty paths, one fisherman | Restrained cold wind and water; deliberately no birds |
-| 张继《枫桥夜泊》 | Dark water, red maples, fishing lights, a distant temple | Water against the bank, sparse crow calls, decaying temple bells |
-| 陶渊明《桃花源记》 | Peach blossom banks, a narrow rock passage, then open fields and homes | Spring birds and stream give way to distant village rooster/dog cues |
-| 王安石《游褒禅山记》 | Mountain temple, fallen stele, spring, walkable torchlit cave | Outdoor wind/water recede into dripping echoes and fire |
+| 柳宗元《江雪》 | Broad empty river, low distant ridges, sparse bare branches and one fisherman | Restrained cold wind and water; deliberately no birds |
+| 张继《枫桥夜泊》 | Low night waterfront, stone arch bridge, red maples, fishing lights and a temple | Water against the bank, sparse crow calls, decaying temple bells |
+| 陶渊明《桃花源记》 | Painted blossom canopy, low mossy cleft, sheltered basin with fields, ponds and homes | Spring birds and stream give way to distant village rooster/dog cues |
+| 王安石《游褒禅山记》 | Close limestone massif, ascending stone steps, mountain temple, stele, side spring and an elevated torchlit cave | Outdoor wind/water recede into dripping echoes and fire |
 
 All five share eye-level walking, the quiet dock, watercolor materials, and time/weather controls. The prose landscapes follow the movement and mood of their texts, not an archaeological reconstruction. The designed cave route stops without claiming to reach the original cave's end. Sources are linked in each reading panel: [江雪](https://zh.wikisource.org/zh-hans/江雪), [枫桥夜泊](https://zh.wikisource.org/zh-hans/楓橋夜泊), [桃花源记](https://zh.wikisource.org/zh-hans/桃花源記), [游褒禅山记](https://zh.wikisource.org/zh-hans/遊褒禪山記). Public-domain originals are displayed in simplified Chinese; explanatory copy is original interpretation.
 
@@ -63,11 +63,11 @@ Import this project through a Git repository in Vercel, or run `npx vercel` from
 
 - React and TypeScript manage the reading interface and experience state.
 - Three.js directly manages the scene, camera, instanced vegetation, water, and movement inside a React-owned lifecycle. The initial plan suggested React Three Fiber; direct Three.js keeps the shared procedural world and scene-specific details in an independently disposable renderer. Changing works releases the previous renderer, textures, input listeners, and audio graph.
-- Terrain, connected mountain ridges, branches, rocks, and character meshes are generated in code. Watercolor materials sample pigment noise in world space. Painted pine foliage uses an original transparent image generated with the built-in image-generation tool; its prompt history is in `public/art/ASSET-NOTES.md`. There are no remote font requests, runtime API calls, or required service keys.
+- Terrain, connected mountain ridges, branches, rocks, and character meshes are generated in code. Watercolor materials sample pigment noise in world space. Painted pine and peach blossom foliage use original transparent images generated with the built-in image-generation tool; prompts are in `public/art/ASSET-NOTES.md` and `public/art/PEACH-ART.md`. The five-scene concept board and implementation direction are in `design/LANDSCAPE-DIRECTIONS.md`. There are no remote font requests, runtime API calls, or required service keys.
 - Repeated vegetation and rocks use instanced geometry. Rendering pauses while the document is hidden or a reading/settings dialog is open. Reduced-motion mode skips unchanged frames. Device pixel ratio is capped, and renderer resources are disposed when the scene unmounts.
 - The source poems and prose are public-domain texts; scene interpretation and explanatory copy were created for this prototype. The reference video is not shipped with the application.
 
-Key files: `src/world.ts` (scene and navigation), `src/App.tsx` (interface), `src/scenes.ts` (five works, landmarks, defaults and sources), `src/sceneDetails.ts` (blossoms, winter fisherman, temple, village and cave), `src/environment.ts` (weather, time and shelter), `src/audio.ts` (spatial sound), `src/poem.ts` (original scene text), `src/style.css` (responsive design), and `tests/experience.spec.ts` (browser verification).
+Key files: `src/landscape.ts` (shore widths, terrain elevation and camera profiles), `src/massif.ts` (continuous rock shells with open cave mouths), `src/world.ts` (scene and navigation), `src/App.tsx` (interface), `src/scenes.ts` (five works, landmarks, defaults and sources), `src/sceneDetails.ts` (blossoms, winter fisherman, temple, village and cave), `src/environment.ts` (weather, time and shelter), `src/audio.ts` (spatial sound), `src/poem.ts` (original scene text), `src/style.css` (responsive design), and `tests/experience.spec.ts` (browser verification).
 
 ## Current scope and limits
 

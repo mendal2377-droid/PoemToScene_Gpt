@@ -7,21 +7,21 @@ export function environmentMix(position:SoundPosition) {
   const pan=(dx:number,dz:number)=>Math.max(-.85,Math.min(.85,(dx*Math.cos(yaw)-dz*Math.sin(yaw))/Math.max(4,Math.hypot(dx,dz))));
   const id=position.scene||'autumn',shelter=Math.max(0,Math.min(1,position.shelter||0)),day=(position.hour??9)>=6&&(position.hour??9)<19;
   const outdoors=1-shelter;
-  const sceneRiver=id==='snow'?.28:id==='maple'?.5:1;
+  const sceneRiver=id==='snow'?.28:id==='maple'?.5:id==='cave'?.32:1;
   return {
-    river:(.18+.65/(1+Math.pow(Math.max(0,distance-5)/7,2)))*sceneRiver*(1-shelter*.95),
-    riverPan:pan(riverX-x,0),
+    river:(.18+.65/(1+Math.pow(Math.max(0,distance-5)/7,2)))*sceneRiver*(1-shelter*.95)*(id==='cave'?1/(1+Math.pow((z-2)/16,2)):1),
+    riverPan:pan(riverX-x,id==='cave'?2-z:0),
     bamboo:(id==='autumn'?1:id==='peach'?.25:0)*(.015+.38/(1+Math.pow(bambooDistance/9,2)))*outdoors,
     bambooPan:pan(19-x,-17-z),
-    wind:(.16+.06*Math.min(1,distance/20))*(1+(position.rain||0)*.35)*outdoors*(id==='snow'?.7:1),
+    wind:(.16+.06*Math.min(1,distance/20))*(1+(position.rain||0)*.35)*outdoors*(id==='snow'?.7:id==='cave'?1.7:id==='peach'?.65:1),
     rain:Math.max(0,Math.min(1,position.rain||0))*.55*outdoors,
     torch:id==='cave'?shelter*.13:0,
     drip:id==='cave'?shelter*.28:0,
     birds:id==='peach'&&day?outdoors*(1-(position.rain||0)*.75)*.25:0,
-    village:id==='peach'?outdoors*.22/(1+Math.pow(Math.hypot(x-20,z+32)/18,2)):0,
-    bell:id==='maple'?.48/(1+Math.pow(Math.hypot(x+19,z+22)/45,2)):0,
+    village:id==='peach'&&z<-10?outdoors*.22/(1+Math.pow(Math.hypot(x-20,z+32)/18,2)):0,
+    bell:id==='maple'?.48/(1+Math.pow(Math.hypot(x+39,z+22)/45,2)):0,
     crow:id==='maple'?.09:0,
-    cuePan:pan(id==='maple'?-19-x:20-x,id==='maple'?-22-z:-32-z),
+    cuePan:pan(id==='maple'?-39-x:20-x,id==='maple'?-22-z:-32-z),
   };
 }
 

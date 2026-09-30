@@ -9,14 +9,12 @@ import {createAtmosphere,type EnvironmentSettings} from './environment';
 
 export type WorldAPI = { environment: (settings:Partial<EnvironmentSettings>) => void; mode: (mode: Mode) => void; go: (index: number) => void; reset: () => void; tour: (on: boolean) => void; quality: (low: boolean) => void; motion: (reduce: boolean) => void; pause: (on: boolean) => void; input: (x: number, y: number) => void; dispose: () => void };
 type Events = { time: (hour:number) => void; ready: () => void; discover: (index: number) => void; tourEnd: () => void; failure: () => void; soundPosition: (position:SoundPosition) => void };
-export const riverX = (z: number) => Math.sin(z * .065) * 7 - 4;
-const height = (x: number, z: number) => {
-  const bank = Math.max(0, Math.abs(x - riverX(z)) - 4.6);
-  return .25 + Math.min(1, bank / 4) * (.65 + Math.sin(x * .14 + z * .07) * .3) + Math.max(0, bank - 13) * .13;
-};
+import {riverCenter,landscapeHeight,waterEdges,waterHeight,landscapeViews} from './landscape';
+export const riverX=riverCenter;
 
 export function createWorld(host: HTMLDivElement, events: Events, definition:SceneDefinition=scenes[0]): WorldAPI {
   const id=definition.id,landmarks=definition.landmarks;
+  const height=(x:number,z:number)=>landscapeHeight(id,x,z),view=landscapeViews[id];
   const winter=id==='snow',flower=id==='peach',maple=id==='maple',cave=id==='cave';
   let dirty=true,paused=false,disposed=false,sceneReady=false,artReady=false;
   const scene = new T.Scene();
@@ -56,8 +54,9 @@ export function createWorld(host: HTMLDivElement, events: Events, definition:Sce
   const colors = [];
   for (let i=0;i<pos.count;i++) {
     const x = pos.getX(i), z = pos.getZ(i), dist = Math.abs(x - riverX(z));
-    pos.setY(i, dist < 4.5 ? -.7 : height(x,z));
-    const c = new T.Color(winter?'#d7e0df':maple?'#696953':'#527d45').lerp(new T.Color(winter?'#f0eee5':maple?'#a09b7b':'#92a771'),1-T.MathUtils.smoothstep(dist,5,10));
+    const edges=waterEdges(id,z),inWater=x>edges.left&&x<edges.right&&(!cave||z>-3);
+    pos.setY(i,inWater?waterHeight(id,z)-.7:height(x,z));
+    const c = new T.Color(winter?'#d7e0df':maple?'#686458':cave?'#73776c':flower?'#849651':'#466e42').lerp(new T.Color(winter?'#f0eee5':maple?'#969080':cave?'#a0a08c':flower?'#b4bc77':'#92a771'),1-T.MathUtils.smoothstep(dist,5,10));
     if(cave&&z<-7&&Math.abs(x-(riverX(z)+10))<3.2)c.set('#66695a');
     c.multiplyScalar(.94 + Math.sin(x*.23+Math.sin(z*.13))*Math.sin(z*.17)*.13); colors.push(c.r,c.g,c.b);
   }
@@ -66,18 +65,18 @@ export function createWorld(host: HTMLDivElement, events: Events, definition:Sce
 
   // Connected ridgelines have asymmetric summits and eroded folds, not cones.
   for (let layer=0;layer<4;layer++) {
-    const mat = material((winter?['#9aafb6','#b2c3c5','#d0dada','#e3e7de']:maple?['#435b62','#637881','#8c9d9e','#b2beba']:['#577e6c','#77988a','#9bb5a2','#bdd0b9'])[layer],1.2);
+    const mat = material((winter?['#9aafb6','#b2c3c5','#d0dada','#e3e7de']:maple?['#435b62','#637881','#8c9d9e','#b2beba']:cave?['#626f70','#85928e','#a5b5ac','#c7d0c0']:['#577e6c','#77988a','#9bb5a2','#bdd0b9'])[layer],1.2);
     mat.vertexColors=true;
     const m=mesh(mountainRange(layer,random),mat);
-    m.position.set(layer%2?15:-12,0,-94-layer*35);
+    m.scale.set(...view.ridgeScale);m.position.set(layer%2?15:-12,0,view.ridgeZ-layer*35);
   }
   const moon = mesh(new T.SphereGeometry(5.1,32,24),new T.MeshBasicMaterial({color:'#ffffe7',fog:false}));
   moon.position.set(-31,53,-160);
 
   const waterPositions:number[] = [], waterIndices:number[]=[];
   for(let i=0;i<=210;i++) {
-    const z=-145+i*1.3, x=riverX(z), width=5.2+(Math.sin(z*.035)+1)*1.3;
-    waterPositions.push(x-width,.07,z,x+width,.07,z);
+    const z=cave?-3+i*.48:-145+i*1.3,edges=waterEdges(id,z),y=waterHeight(id,z);
+    waterPositions.push(edges.left,y,z,edges.right,y,z);
     if(i<210) { const n=i*2; waterIndices.push(n,n+2,n+1,n+1,n+2,n+3); }
   }
   const waterGeo=new T.BufferGeometry(); waterGeo.setAttribute('position',new T.Float32BufferAttribute(waterPositions,3));waterGeo.setIndex(waterIndices);waterGeo.computeVertexNormals();
@@ -94,17 +93,17 @@ export function createWorld(host: HTMLDivElement, events: Events, definition:Sce
       float eddy = sin(vPigmentPosition.x * 3.1 + sin(vPigmentPosition.z * .8 - uTime * .35));
       float current = smoothstep(.78, 1.0, sin(stream + eddy * 2.3));
       float broken = smoothstep(.05, .8, sin(vPigmentPosition.x * 5.0 + vPigmentPosition.z * .6));
-      outgoingLight += vec3(.15, .20, .13) * current * broken;
+      outgoingLight += vec3(.15, .20, .13) * current * broken * ${(winter?.12:maple?.22:1).toFixed(2)};
       #include <opaque_fragment>
     `);
   };
-  waterMat.customProgramCacheKey=()=> 'watercolor-flowing-river-v2';
+  waterMat.customProgramCacheKey=()=> `watercolor-flowing-river-v3-${id}`;
   mesh(waterGeo,waterMat);
   // Broken horizontal strokes on the water catch the evening light.
   const rippleMat = new T.LineBasicMaterial({color:'#e4f0c8',transparent:true,opacity:.48});
   const rippleVertices:number[]=[];
-  const currents=Array.from({length:220},()=>({z:random()*130-85,offset:(random()-.5)*8,width:.2+random()*.7,speed:.5+random()*.45}));
-  for(const c of currents){const x=riverX(c.z)+c.offset;rippleVertices.push(x,.13,c.z,x+c.width,.13,c.z+.05);}
+  const currents=Array.from({length:winter?60:maple?95:220},()=>({z:cave?-2+random()*95:random()*130-85,offset:random(),width:.2+random()*(winter?1.6:.7),speed:.5+random()*.45}));
+  for(const c of currents){const edges=waterEdges(id,c.z),x=T.MathUtils.lerp(edges.left+.2,edges.right-.8,c.offset),y=waterHeight(id,c.z)+.06;rippleVertices.push(x,y,c.z,x+c.width,y,c.z+.05);}
   const ripples=new T.LineSegments(new T.BufferGeometry().setAttribute('position',new T.Float32BufferAttribute(rippleVertices,3)),rippleMat);scene.add(ripples);
   const currentPositions=ripples.geometry.attributes.position;
 
@@ -116,15 +115,15 @@ export function createWorld(host: HTMLDivElement, events: Events, definition:Sce
       float wisp=.55+.45*sin(vUv.x*19.0+sin(vUv.y*10.0)+uTime*.16);
       gl_FragColor=vec4(uMistTint,edge*wisp*uMistOpacity);
     }`});
-  for(let i=0;i<5;i++){const mist=mesh(new T.PlaneGeometry(35,4),mistMat);mist.position.set(riverX(-20-i*17),1.5+i*.3,-20-i*17);}
+  for(let i=0;i<(cave?0:5);i++){const mist=mesh(new T.PlaneGeometry(35,4),mistMat);mist.position.set(riverX(-20-i*17),1.5+i*.3,-20-i*17);}
 
   type Bucket = { geo:T.BufferGeometry;mat:T.Material;transforms:T.Matrix4[] };
   const artComplete=()=>{artReady=true;dirty=true;if(sceneReady&&!disposed)events.ready();};
-  const foliageTexture=flower||maple?paintedLeaves(id,random):new T.TextureLoader().load('/art/pine-watercolor.png',artComplete,undefined,()=>{
+  const foliageTexture=maple?paintedLeaves(id,random):new T.TextureLoader().load(flower?'/art/peach-blossom-watercolor.png':'/art/pine-watercolor.png',artComplete,undefined,()=>{
     // Keep a usable scene if a texture fails; the leaf geometry still has volume.
     foliageMat.map=null;foliageMat.alphaTest=0;foliageMat.color.set('#688d70');foliageMat.needsUpdate=true;artComplete();
   });
-  if(flower||maple)queueMicrotask(artComplete);
+  if(maple)queueMicrotask(artComplete);
   foliageTexture.colorSpace=T.SRGBColorSpace;
   foliageTexture.anisotropy=Math.min(4,renderer.capabilities.getMaxAnisotropy());
   const foliageMat=new T.MeshBasicMaterial({map:foliageTexture,color:flower||maple?'#ffffff':'#9dbe7c',alphaTest:.16,side:T.DoubleSide,alphaToCoverage:true});
@@ -143,6 +142,7 @@ export function createWorld(host: HTMLDivElement, events: Events, definition:Sce
     light:{geo:new T.PlaneGeometry(2,1),mat:foliageMat,transforms:[]},
     trunk:{geo:new T.CylinderGeometry(.65,1,1,9),mat:bark,transforms:[]},
     rocks:{geo:roundedRock,mat:rock,transforms:[]},
+    cliffRocks:{geo:roundedRock,mat:material('#747e72'),transforms:[]},
     bamboo:{geo:new T.CylinderGeometry(.07,.11,1,8),mat:pine,transforms:[]},
     bambooLeaf:{geo:new T.SphereGeometry(1,10,6),mat:pineLight,transforms:[]},
     grass:{geo:grassTuftGeometry(),mat:grassMat,transforms:[]},
@@ -159,8 +159,8 @@ export function createWorld(host: HTMLDivElement, events: Events, definition:Sce
     dummy.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),direction.clone().normalize());
     dummy.scale.set(radius,direction.length(),radius);dummy.updateMatrix();buckets.trunk.transforms.push(dummy.matrix.clone());
   };
-  const tree=(x:number,z:number,size:number)=>{
-    const ground=height(x,z),bend=(random()-.5)*1.1,phase=random()*6.28;
+  const tree=(x:number,z:number,size:number,ground=height(x,z))=>{
+    const bend=(random()-.5)*1.1,phase=random()*6.28;
     const spine=(t:number)=>new T.Vector3(x+Math.sin(t*2.8)*bend*size,ground+t*6.8*size,z+Math.sin(t*3+phase)*size*.22);
     for(let j=0;j<6;j++)branch(spine(j/6),spine((j+1)/6),size*(.19-j*.022));
     for(let tier=0;tier<5;tier++) {
@@ -175,18 +175,24 @@ export function createWorld(host: HTMLDivElement, events: Events, definition:Sce
     }
   };
   const blockers:{x:number;z:number;r:number}[]=[];
-  for(let i=0;i<(winter?28:90);i++) {
+  for(let i=0;i<(winter?5:cave?28:maple?42:90);i++) {
     const x=(random()-.5)*145,z=random()*105-70,dist=Math.abs(x-riverX(z));
-    if(dist<10 || (x>0&&x<26&&z>-41&&z<31)) continue;
-    if((flower&&z<5)||(cave&&z<-5))continue;
+    const edge=waterEdges(id,z);if((x>edge.left-2&&x<edge.right+2) || (x>0&&x<26&&z>-41&&z<31)) continue;
+    if((flower&&z<5)||(cave&&z<8))continue;
     tree(x,z,(flower?.45:.55)+random()*(flower?.55:1.1));blockers.push({x,z,r:.9});
   }
   [[16,17,1.55],[20,12,1.1],[24,22,1.55],[17,24,.9],[-19,20,1.65],[-24,11,1.1],[-22,-12,1.1],[22,-34,1.05],
     [19,29,1.35],[24,4,1.6],[21,-6,1.3],[17,-30,1.2],[23,-42,1.4],[-15,-28,1.2],[-20,-44,1.5],[-13,30,1.4]
-  ].forEach(([x,z,s])=>{if((flower&&z<5)||(cave&&z<-5))return;tree(x,z,flower?s*.65:s);blockers.push({x,z,r:.9});});
-  if(flower){for(let i=0;i<30;i++){const z=8+random()*30,x=riverX(z)+(i%2?-1:1)*(8+random()*4);tree(x,z,.65+random()*.35);}}
-  for(let i=0;i<200;i++) {
-    const z=random()*120-70,side=random()>.5?1:-1,x=riverX(z)+side*(5.5+random()*3),s=.25+random()*1.2;
+  ].forEach(([x,z,s])=>{if(winter||(maple&&x<0)||(flower&&z<5)||(cave&&(z<14||x<20)))return;tree(x,z,flower?s*.65:maple?s*.68:s);blockers.push({x,z,r:.9});});
+  if(flower){for(let i=0;i<55;i++){const z=8+random()*35,x=riverX(z)+(i%2?-1:1)*(5+random()*3);tree(x,z,.85+random()*.45);}}
+  if(id==='autumn'){for(let i=0;i<8;i++){const z=-20+random()*24,x=riverX(z)-12-random()*3;tree(x,z,1.25+random()*.4);}}
+  if(cave){
+    for(const [x,y,z,s] of [[23,34,-5,.75],[-13,29,-5.5,.8],[29,48,-5.5,.65],[-22,39,-6,.55],[13,60,-5.5,.6],[31,24,-5,.7]]){
+      instance('cliffRocks',x,y-1.4,z-1.8,4,2.1,4.5,0,.2);tree(x,z,s,y);
+    }
+  }
+  for(let i=0;i<(winter?35:cave?80:200);i++) {
+    const z=random()*120-70,side=random()>.5?1:-1,x=riverX(z)+side*(id==='peach'?3.5+random()*2:5.5+random()*3),s=.25+random()*1.2;
     instance('rocks',x,height(x,z)-.05,z,s,s*.65,s*.8,random()*.6,random()*6);
   }
   for(let i=0;i<(id==='autumn'?55:flower?24:0);i++) {
@@ -197,19 +203,19 @@ export function createWorld(host: HTMLDivElement, events: Events, definition:Sce
       instance('bambooLeaf',x+Math.cos(a)*.7,y,z+Math.sin(a)*.7,.6,.045,.12,.3,a);
     }
   }
-  for(let i=0;i<(winter?0:6500);i++) {
+  for(let i=0;i<(winter?0:cave?700:maple?1500:6500);i++) {
     const z=random()*110-60,x=(random()-.5)*90,dist=Math.abs(x-riverX(z));
-    if((cave&&z<-6)||(flower&&z<6)||dist<6||Math.abs(x-(riverX(z)+10))<1.6)continue;
+    const edge=waterEdges(id,z);if((cave&&z<8)||(flower&&z<6)||(x>edge.left-1&&x<edge.right+1)||Math.abs(x-(riverX(z)+10))<1.6)continue;
     const h=.45+random()*.8;instance('grass',x,height(x,z),z,1.2,h,1.2,(random()-.5)*.25,random()*6);
   }
   // Layered fern colonies hug the path; tall reeds soften the wet banks.
-  for(let i=0;i<(winter?0:600);i++){
+  for(let i=0;i<(winter?0:cave?120:maple?80:600);i++){
     const z=random()*91-49,side=random()>.5?1:-1,x=riverX(z)+10+side*(1.7+Math.pow(random(),2)*8);
-    if((cave&&z<-6)||(flower&&z<6)||Math.abs(x-riverX(z))<6.4)continue;
+    const edge=waterEdges(id,z);if((cave&&z<8)||(flower&&z<6)||(x>edge.left-1&&x<edge.right+1))continue;
     const s=.45+random()*.55;instance('fern',x,height(x,z),z,s,s,s,0,random()*6.28);
   }
-  for(let i=0;i<(winter?0:1050);i++){
-    const z=random()*110-65,x=riverX(z)+(random()>.5?1:-1)*(5.3+random()*1.6);
+  for(let i=0;i<(winter||cave?0:maple?160:flower?340:1050);i++){
+    const z=random()*110-65,edge=waterEdges(id,z),x=random()>.5?edge.right+random()*1.3:edge.left-random()*1.3;
     instance('reeds',x,height(x,z)-.15,z,.9,1.3+random()*1.1,.9,0,random()*6.28);
   }
   for(const b of Object.values(buckets)) {
@@ -222,7 +228,7 @@ export function createWorld(host: HTMLDivElement, events: Events, definition:Sce
   const pathGeo=new T.BufferGeometry();pathGeo.setAttribute('position',new T.Float32BufferAttribute(pathVertices,3));pathGeo.setIndex(pathIndices);pathGeo.computeVertexNormals();sand.side=T.DoubleSide;mesh(pathGeo,sand);
 
   // An open waterside pavilion: columns, railings, and swept roof rings.
-  const scenic=new T.Group();scene.add(scenic);scenic.visible=id==='autumn'||maple;
+  const scenic=new T.Group();scene.add(scenic);scenic.visible=id==='autumn';
   const pavilion=new T.Group();pavilion.position.set(-16,height(-16,8),8);scenic.add(pavilion);pavilion.visible=id==='autumn';
   mesh(new T.CylinderGeometry(4.3,4.6,.5,8),stone,pavilion).position.y=.15;
   for(let i=0;i<6;i++) {
@@ -304,7 +310,7 @@ export function createWorld(host: HTMLDivElement, events: Events, definition:Sce
   let transition:{pos:T.Vector3;target:T.Vector3}|null=null;
   const found=new Set<number>();
   const discoverAtPlayer=()=>landmarks.forEach((p,i)=>{if(Math.hypot(player.position.x-p.x,player.position.z-p.z)<4&&!found.has(i)){found.add(i);events.discover(i);}});
-  const initialCamera=new T.Vector3(46,25,66),initialTarget=new T.Vector3(-4,6,-19);
+  const initialCamera=new T.Vector3(...view.camera),initialTarget=new T.Vector3(...view.target);
   camera.position.copy(initialCamera);controls.target.copy(initialTarget);controls.update();
   const stopTour=()=>{if(autoTour){autoTour=false;events.tourEnd();}};
   const onKey=(e:KeyboardEvent)=>{
@@ -345,7 +351,7 @@ export function createWorld(host: HTMLDivElement, events: Events, definition:Sce
       const streamTime=time*(winter?.25:maple?.35:1);
       boat.position.y=.22+Math.sin(time*.7)*.055;boat.rotation.z=Math.sin(time*.55)*.018;
       birds.position.set(Math.sin(time*.018)*60,30,-60+Math.cos(time*.018)*15);
-      currents.forEach((c,i)=>{const z=((c.z+85+streamTime*c.speed)%130)-85,x=riverX(z)+c.offset;currentPositions.setXYZ(i*2,x,.14,z);currentPositions.setXYZ(i*2+1,x+c.width,.14,z+.05);});
+      currents.forEach((c,i)=>{const z=cave?((c.z+2+streamTime*c.speed)%95)-2:((c.z+85+streamTime*c.speed)%130)-85,edge=waterEdges(id,z),x=T.MathUtils.lerp(edge.left+.2,edge.right-.8,c.offset),y=waterHeight(id,z)+.07;currentPositions.setXYZ(i*2,x,y,z);currentPositions.setXYZ(i*2+1,x+c.width,y,z+.05);});
       currentPositions.needsUpdate=true;updateLeaves(time);
     }
     if(mode==='walk') {
@@ -369,7 +375,7 @@ export function createWorld(host: HTMLDivElement, events: Events, definition:Sce
     if(mode==='view')controls.update();
     soundTimer+=dt;
     if(soundTimer>.15){soundTimer=0;camera.getWorldDirection(direction);const position=mode==='walk'?player.position:camera.position;
-      events.soundPosition({x:position.x,z:position.z,yaw:Math.atan2(-direction.x,-direction.z),riverX:riverX(position.z),rain:atmosphere.weather()==='rain'?1:0,scene:id,shelter,hour:atmosphere.hour()});
+      events.soundPosition({x:position.x,z:position.z,yaw:Math.atan2(-direction.x,-direction.z),riverX:cave?riverX(position.z)+3.7:riverX(position.z),rain:atmosphere.weather()==='rain'?1:0,scene:id,shelter,hour:atmosphere.hour()});
     }
     if(!reduced||dirty){renderer.render(scene,camera);dirty=false;}
   };
@@ -388,8 +394,8 @@ export function createWorld(host: HTMLDivElement, events: Events, definition:Sce
     go:(index)=>{const p=landmarks[index];if(!p)return;stopTour();if(mode==='walk'){
       const inPassage=(flower&&p.z<5&&p.z>-10)||(cave&&p.z<-7),px=inPassage?riverX(p.z)+10:Math.max(p.x,riverX(p.z)+7.4);
       player.position.set(px,height(px,p.z),p.z);
-      const focusX=flower&&index>=2?22:maple&&index===2?-19:winter?riverX(p.z):index===0?20:index===2?19:riverX(p.z);yaw=(cave&&index>=1)||(flower&&index===1)?0:Math.atan2(player.position.x-focusX,4);pitch=0;eyeCamera();discoverAtPlayer();
-    }else{transition={pos:new T.Vector3(p.x+18,16,p.z+22),target:new T.Vector3(p.x,2,p.z)};}},
+      const focusX=flower&&index>=2?22:maple&&index===2?-39:winter?riverX(p.z):index===0?20:index===2?19:riverX(p.z);yaw=(cave&&index>=1)||(flower&&index===1)?0:Math.atan2(player.position.x-focusX,4);pitch=0;eyeCamera();discoverAtPlayer();
+    }else{const lift=height(p.x,p.z);transition={pos:new T.Vector3(p.x+(cave?45:18),lift+(cave?32:16),p.z+(cave?50:22)),target:new T.Vector3(p.x,lift+2,p.z)};}},
     reset:()=>{stopTour();player.position.set(riverX(27)+10,height(riverX(27)+10,27),27);setMode(mode);},
     tour:(on)=>{autoTour=on;tourTarget=0;tourPause=0;if(on){setMode('walk');autoTour=true;}},
     quality:(low)=>{renderer.setPixelRatio(low?1:Math.min(window.devicePixelRatio,1.6));dirty=true;},
