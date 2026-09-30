@@ -44,7 +44,7 @@ function SceneApp({scene,selectScene,sound,setSound,quality,setQuality,reduce,se
   const [displayHour,setDisplayHour]=useState(environment.hour);
   const environmentRef=useRef(environment);environmentRef.current=environment;
   const environmentToggle=useRef<HTMLButtonElement>(null);
-  const [modal,setModal]=useState<'poem'|'library'|'settings'|null>(null),[tour,setTour]=useState(false),[fullscreen,setFullscreen]=useState(false);
+  const [modal,setModal]=useState<'poem'|'library'|'settings'|null>(null),[tour,setTour]=useState(false),[fullscreen,setFullscreen]=useState(()=>Boolean(document.fullscreenElement));
   const [toast,setToast]=useState(''),[speaking,setSpeaking]=useState(false),[joystick,setJoystick]=useState({x:0,y:0});
   const joystickRef=useRef<HTMLDivElement>(null);
   const soundPosition=useRef<SoundPosition>({x:13,z:27,yaw:.35,riverX:3,scene:scene.id,hour:environment.hour});
