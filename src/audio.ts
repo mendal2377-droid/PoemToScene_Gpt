@@ -1,5 +1,5 @@
 import type {SceneId} from './scenes';
-export type SoundPosition = { x:number; z:number; yaw:number; riverX:number; rain?:number;scene?:SceneId;shelter?:number;hour?:number };
+export type SoundPosition = { x:number; z:number; yaw:number; riverX:number; rain?:number;scene?:SceneId;shelter?:number;hour?:number;walking?:boolean };
 
 export function environmentMix(position:SoundPosition) {
   const {x,z,yaw,riverX}=position;
@@ -21,6 +21,9 @@ export function environmentMix(position:SoundPosition) {
     village:id==='peach'&&z<-10?outdoors*.22/(1+Math.pow(Math.hypot(x-20,z+32)/18,2)):0,
     bell:id==='maple'?.48/(1+Math.pow(Math.hypot(x+39,z+22)/45,2)):0,
     crow:id==='maple'?.09:0,
+    human:id==='autumn'?outdoors*.16/(1+Math.pow(Math.hypot(x-18,z+20)/8,2)):id==='peach'&&z<-10?outdoors*.12/(1+Math.pow(Math.hypot(x-20,z+22)/12,2)):0,
+    humanPan:pan(id==='autumn'?18-x:20-x,id==='autumn'?-20-z:-22-z),
+    mooring:id==='maple'?.16/(1+Math.pow(Math.hypot(x-riverX-3.3,z-2)/10,2)):0,
     cuePan:pan(id==='maple'?-39-x:20-x,id==='maple'?-22-z:-32-z),
   };
 }
@@ -52,6 +55,10 @@ export function createSoundscape(context:BaseAudioContext) {
   const river=layer('bandpass',950,.55,.17,.13),wind=layer('lowpass',650,.5,.075,.28),bamboo=layer('bandpass',2600,.7,.31,.35),rain=layer('highpass',1500,.5,.23,.07),torch=layer('bandpass',1800,.8,7,.22);
   const cueBus=context.createGain();cueBus.connect(master);
   const cueSources=new Set<OscillatorNode>();
+  const transients=new Set<AudioBufferSourceNode>();
+  const grain=context.createBuffer(1,Math.floor(context.sampleRate*.6),context.sampleRate);
+  const samples=grain.getChannelData(0);for(let i=0;i<samples.length;i++)samples[i]=(Math.random()*2-1)*Math.pow(1-i/samples.length,2);
+  let previousPosition:SoundPosition|null=null,stepDistance=0,lastStep=0;
   let profile:SceneId='autumn',nextCue=0,cueIndex=0;
   // Sparse irregular phrases, with a real decaying echo path for cave droplets.
   const echo=context.createDelay(1);echo.delayTime.value=.23;const feedback=context.createGain();feedback.gain.value=.36;echo.connect(feedback).connect(echo);echo.connect(cueBus);
@@ -63,27 +70,50 @@ export function createSoundscape(context:BaseAudioContext) {
     oscillator.connect(envelope).connect(panner).connect(cueBus);if(reverb)panner.connect(echo);
     cueSources.add(oscillator);oscillator.onended=()=>{cueSources.delete(oscillator);oscillator.disconnect();envelope.disconnect();panner.disconnect();};oscillator.start(at);oscillator.stop(at+duration+.02);
   };
+  // Short, soft contacts: cloth, wet gravel, timber. No simulated conversation.
+  const contact=(at:number,duration:number,gain:number,frequency:number,pan=0,enclosed=false)=>{
+    if(gain<.00001)return;
+    const source=context.createBufferSource(),filter=context.createBiquadFilter(),envelope=context.createGain(),panner=context.createStereoPanner();source.buffer=grain;filter.type='lowpass';filter.frequency.value=frequency;panner.pan.value=pan;
+    envelope.gain.setValueAtTime(0,at);envelope.gain.linearRampToValueAtTime(gain,at+.015);envelope.gain.exponentialRampToValueAtTime(.00001,at+duration);
+    source.connect(filter).connect(envelope).connect(panner).connect(cueBus);if(enclosed)panner.connect(echo);
+    transients.add(source);source.onended=()=>{transients.delete(source);source.disconnect();filter.disconnect();envelope.disconnect();panner.disconnect();};source.start(at);source.stop(at+duration+.01);
+  };
   const update=(position:SoundPosition)=>{
     const mix=environmentMix(position),time=context.currentTime,id=position.scene||'autumn';
     if(id!==profile){
       for(const source of cueSources){source.stop();source.disconnect();}cueSources.clear();
+      transients.forEach(source=>source.stop());
       profile=id;nextCue=time;cueIndex=0;
+      previousPosition=null;stepDistance=0;
     }
+    if(position.walking&&previousPosition?.walking){
+      const distance=Math.hypot(position.x-previousPosition.x,position.z-previousPosition.z);
+      // Scene selection/landmark jumps are not footsteps.
+      if(distance<2)stepDistance+=distance;else stepDistance=0;
+      if(stepDistance>.85&&time-lastStep>.28){contact(time+.02,.12,id==='snow'?.026:.06,id==='cave'?700:id==='snow'?1200:1600,0,(position.shelter||0)>.5);lastStep=time;stepDistance=0;}
+    }else stepDistance=0;
+    previousPosition={...position};
     if(time>=nextCue){
       const at=time+.04;
       if(id==='maple'){
         if(cueIndex%3===0){[1,2.05,2.72,4.1].forEach((partial,i)=>tone(146*partial,146*partial,at,7-i, mix.bell*.30/(i+1),mix.cuePan));}
         else{for(let i=0;i<2;i++)tone(430,260,at+i*.4,.3,mix.crow*.25,mix.cuePan,'sawtooth');}
+        contact(at+1.7,.3,mix.mooring*.22,370,-.2);
         nextCue=time+11+Math.random()*6;
       }else if(id==='peach'){
         if(cueIndex%4===2&&mix.village>.05){ // distant rooster, then an occasional low village dog
           for(let i=0;i<4;i++)tone(580+i*85,800,at+i*.18,i===3?.6:.15,mix.village*.25,mix.cuePan,'triangle');
         }else if(cueIndex%7===5&&mix.village>.05){tone(170,95,at,.17,mix.village*.22,mix.cuePan,'sawtooth');tone(165,90,at+.28,.16,mix.village*.18,mix.cuePan,'sawtooth');}
         else for(let i=0;i<3;i++)tone(2000+i*310,3100-i*120,at+i*.23,.15,mix.birds*.15,Math.sin(cueIndex)*.7);
+        contact(at+.8,.18,mix.human*.28,1300,mix.humanPan);
         nextCue=time+5+Math.random()*5;
       }else if(id==='cave'){
         if(mix.drip>.01)tone(1700,720,at,.12,mix.drip*.18,Math.sin(cueIndex*2)*.65,'sine',true);
         nextCue=time+1.6+Math.random()*3;
+      }else if(id==='autumn'){
+        // Near the returning washerwomen: a basket/cloth rustle, then water off a leaf.
+        contact(at,.28,mix.human*.5,2100,mix.humanPan);tone(1900,820,at+.7,.09,mix.human*.14,mix.humanPan);
+        nextCue=time+7+Math.random()*8;
       }else nextCue=time+8;
       cueIndex++;
     }
@@ -93,7 +123,7 @@ export function createSoundscape(context:BaseAudioContext) {
     bamboo.level.gain.setTargetAtTime(mix.bamboo,time,.35);bamboo.panner.pan.setTargetAtTime(mix.bambooPan,time,.2);
   };
   update({x:13,z:27,yaw:.35,riverX:3});
-  return {update,dispose:()=>{sources.forEach(source=>source.stop());cueSources.forEach(source=>source.stop());echo.disconnect();feedback.disconnect();cueBus.disconnect();master.disconnect();}};
+  return {update,dispose:()=>{sources.forEach(source=>source.stop());cueSources.forEach(source=>source.stop());transients.forEach(source=>source.stop());echo.disconnect();feedback.disconnect();cueBus.disconnect();master.disconnect();}};
 }
 
 export function createAmbience() {

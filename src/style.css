@@ -76,3 +76,8 @@
  .scene-maple .intro-poem p{font-size:13px;letter-spacing:1px}
  .full-poem.prose{font-size:16px}
 }
+.reading-hud{position:absolute;bottom:105px;left:50%;transform:translateX(-50%);width:min(560px,80vw);z-index:4;text-align:center;color:#fff6de;pointer-events:none;text-shadow:0 2px 6px #102b24,0 0 18px #102b24}
+.reading-hud[hidden]{display:none}.reading-line{font:clamp(17px,1.65vw,23px)/1.8 var(--serif);letter-spacing:.15em;margin:0;padding:8px 25px;background:radial-gradient(ellipse,#142f244d,transparent 72%);animation:verse-in .8s ease}
+.reading-controls{display:flex;justify-content:center;align-items:center;gap:6px;opacity:.45;transition:opacity .2s}.reading-hud:hover .reading-controls,.reading-hud:focus-within .reading-controls{opacity:1}.reading-controls button{pointer-events:auto;display:grid;place-items:center;width:28px;height:26px;color:#fff8e9;border-radius:50%;background:#163b3430}.reading-controls button:hover{background:#163b3480}.reading-controls span{font:9px Georgia;letter-spacing:1px}.cave-return{position:absolute;right:4.3%;bottom:110px;z-index:5;display:flex;align-items:center;gap:7px;color:#f5e7c6;background:#1c282a70;border:1px solid #e2d4ae40;padding:10px 14px;border-radius:20px;font:12px var(--serif)}
+@keyframes verse-in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+@media(max-width:800px){.reading-hud{bottom:211px;width:90vw}.reading-line{font-size:17px;letter-spacing:.08em;padding:4px 18px}.reading-controls{opacity:.75}.cave-return{bottom:125px;right:6%;font-size:11px}.wander-dock{gap:3px;padding:6px 8px}.wander-dock .icon-button{width:36px}}

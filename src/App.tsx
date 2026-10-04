@@ -1,3 +1,5 @@
+import {ReadingHud,readHudPreference} from './ReadingHud';
+import {Captions} from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ArrowDown, ArrowLeft, ArrowRight, BookOpen, Check, ChevronRight, Compass, Footprints, Headphones, Leaf, Maximize, Minimize, Moon, Mountain, Navigation, Pause, Play, RotateCcw, Settings2, Volume2, VolumeX, Waves, X } from 'lucide-react';
 import { type Mode } from './poem';
@@ -85,6 +87,8 @@ function SceneApp({scene,selectScene,sound,setSound,quality,setQuality,reduce,se
   const [ready,setReady]=useState(false),[failed,setFailed]=useState(false),[retry,setRetry]=useState(0);
   const [mode,setMode]=useState<Mode>('view'),[active,setActive]=useState<number|null>(null),[found,setFound]=useState<number[]>(()=>readProgress(storeKey));
   const [routeOpen,setRouteOpen]=useState(false);
+  const [reading,setReading]=useState(readHudPreference),[inCavern,setInCavern]=useState(false);
+  const toggleReading=(on:boolean)=>{setReading(on);try{localStorage.setItem('shijing-reading-hud',on?'on':'off');}catch{/* Optional preference. */}};
   const [environment,setEnvironment]=useState(()=>readEnvironment(environmentKey,scene.environment)),[environmentOpen,setEnvironmentOpen]=useState(false);
   const [displayHour,setDisplayHour]=useState(environment.hour);
   const environmentRef=useRef(environment);environmentRef.current=environment;
@@ -102,7 +106,7 @@ function SceneApp({scene,selectScene,sound,setSound,quality,setQuality,reduce,se
         time:setDisplayHour,
         ready:()=>setReady(true),failure:()=>{setFailed(true);setReady(false);},tourEnd:()=>setTour(false),
         discover:(i)=>{setFound(previous=>previous.includes(i)?previous:[...previous,i]);},
-        soundPosition:(position)=>{soundPosition.current=position;ambience.current?.update(position);}
+        soundPosition:(position)=>{soundPosition.current=position;ambience.current?.update(position);setInCavern(scene.id==='cave'&&position.z<-33);}
       },scene);}catch(error){console.error('Scene initialization failed',error);setFailed(true);}
     }).catch(()=>setFailed(true));
     return()=>{cancelled=true;world.current?.dispose();world.current=null;};
@@ -175,6 +179,8 @@ function SceneApp({scene,selectScene,sound,setSound,quality,setQuality,reduce,se
       <div className="view-controls"><button className="icon-button" onClick={()=>{world.current?.reset();setTour(false);setActive(null);focusScene();}} disabled={!ready} aria-label="重置视角"><RotateCcw size={18}/></button><button className="icon-button" onClick={toggleFullscreen} aria-label={fullscreen?'退出全屏':'进入全屏'}>{fullscreen?<Minimize size={18}/>:<Maximize size={18}/>}</button></div>
     </aside>
 
+    {mode==='walk'&&reading&&<ReadingHud text={fullPoem} paused={Boolean(modal)||environmentOpen||routeOpen||active!==null} onHide={()=>toggleReading(false)}/>}
+    {mode==='walk'&&inCavern&&!modal&&!routeOpen&&<button className="cave-return" onClick={()=>{world.current?.returnToEntrance();setTour(true);focusScene();}}><ArrowLeft size={14}/>循光出洞</button>}
     {mode==='walk'&&<div className="walk-status sr-only" role="status">{tour?'循诗而行 · 自动漫游':'自在漫游'} · {found.length} / 4 处诗意</div>}
 
     {active!==null&&<section className="discovery-card" aria-label={landmarks[active].name}><button className="close-card icon-button" onClick={()=>setActive(null)} aria-label="收起诗意"><X size={15}/></button><div className="eyebrow">{found.includes(active)?'已寻得的诗意':'诗中一景'} · 0{active+1}</div><h2>{landmarks[active].line}<span>。</span></h2><p>{landmarks[active].description}</p>{!found.includes(active)&&mode==='view'&&<button className="text-button" onClick={()=>{changeMode('walk');world.current?.go(active);}}>走近此景 <ArrowRight size={14}/></button>}</section>}
@@ -184,6 +190,7 @@ function SceneApp({scene,selectScene,sound,setSound,quality,setQuality,reduce,se
       <span className="dock-divider"/>
       <button className="icon-button" onClick={startTour} aria-label={tour?'暂停漫游':'循诗而行'} title={tour?'暂停漫游':'循诗而行'} aria-pressed={tour}>{tour?<Pause size={18}/>:<Play size={18}/>}</button>
       <button className="icon-button" onClick={()=>{setRouteOpen(!routeOpen);setActive(null);}} aria-label="沿途拾诗" title="沿途拾诗" aria-expanded={routeOpen} aria-controls="poetry-route"><Compass size={19}/>{found.length>0&&<span className="discovery-dot"/>}</button>
+      <button className="icon-button" onClick={()=>toggleReading(!reading)} aria-label="随行诗文" title="随行诗文" aria-pressed={reading}><Captions size={18}/></button>
       <button className="icon-button" onClick={()=>openModal('poem')} aria-label="阅读诗文" title="阅读诗文"><BookOpen size={18}/></button>
     </div>}
 
@@ -203,7 +210,7 @@ function SceneApp({scene,selectScene,sound,setSound,quality,setQuality,reduce,se
       <p className="modal-lead">三首诗，两篇记。循文字，入山水。</p>
       <LiteraryCollection scene={scene} onSelect={item=>{if(item.id===scene.id){setModal(null);changeMode('view');world.current?.reset();}else selectScene(item);}}/>
     </Modal>}
-    {modal==='settings'&&<Modal title="随心入境" onClose={()=>setModal(null)}><div className="setting-row"><span><strong>轻盈画质</strong><small>降低渲染分辨率，适合手机与节能使用</small></span><input type="checkbox" checked={quality} onChange={e=>setQuality(e.target.checked)} aria-label="轻盈画质"/></div><div className="setting-row"><span><strong>减少动态效果</strong><small>静止流水、草木与雨丝，暂停昼夜流转和镜头过渡</small></span><input type="checkbox" checked={reduce} onChange={e=>setReduce(e.target.checked)} aria-label="减少动态效果"/></div><div className="settings-help"><h3>如何漫游</h3><p>漫游以诗人眼睛的高度看世界。电脑：W A S D 或方向键行走，拖动画面转头。</p><p>手机：左下摇杆行走，拖动画面转头。观景模式仍可缩放。</p><p>播放按钮开启「循诗而行」。手动行走即可中止引导。罗盘按钮展开沿途诗景，点选后前往并阅读。走近诗景会静静记录，不打断漫游。</p><h3>环境声音</h3><p>{scene.sound}声音由程序合成，并非实地自然录音。水声与场景声随位置、朝向和天气变化；洞内收起风雨，留下水滴回响与近身火声。戴耳机可听见方向。</p><p>已寻得的诗意保存在本设备。当前进度：{found.length} / 4。</p></div></Modal>}
+    {modal==='settings'&&<Modal title="随心入境" onClose={()=>setModal(null)}><div className="setting-row"><span><strong>轻盈画质</strong><small>降低渲染分辨率，适合手机与节能使用</small></span><input type="checkbox" checked={quality} onChange={e=>setQuality(e.target.checked)} aria-label="轻盈画质"/></div><div className="setting-row"><span><strong>减少动态效果</strong><small>静止流水、草木与雨丝，暂停昼夜流转和镜头过渡</small></span><input type="checkbox" checked={reduce} onChange={e=>setReduce(e.target.checked)} aria-label="减少动态效果"/></div><div className="settings-help"><h3>如何漫游</h3><p>漫游以诗人眼睛的高度看世界。电脑：W A S D 或方向键行走，拖动画面转头。</p><p>手机：左下摇杆行走，拖动画面转头。观景模式仍可缩放。</p><p>播放按钮开启「循诗而行」。手动行走即可中止引导。罗盘按钮展开沿途诗景，点选后前往并阅读。走近诗景会静静记录，不打断漫游。</p><h3>随行诗文</h3><p>漫游时，一次只留一句在画面下方。可以暂停、前后翻句，或点字幕按钮隐藏；长文也能慢慢读完。完整原文仍在书页中。</p><h3>环境声音</h3><p>{scene.sound}声音由程序合成，并非实地自然录音。水声与场景声随位置、朝向和天气变化；洞内收起风雨，留下水滴回响与近身火声。戴耳机可听见方向。</p><p>已寻得的诗意保存在本设备。当前进度：{found.length} / 4。</p></div></Modal>}
     <a className="skip-link" href="#poem-accessible" onClick={()=>openModal('poem')}>阅读诗文</a><div id="poem-accessible" className="sr-only">{scene.title}，{scene.era}代{scene.author}。{fullPoem.join('')}</div>
   </main>;
 }

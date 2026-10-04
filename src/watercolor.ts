@@ -144,11 +144,11 @@ export function mountainRange(layer: number, random: () => number) {
 // Narrow, curved blades replace the solid cones in the original ground cover.
 export function grassTuftGeometry() {
   const vertices: number[] = [], indices: number[] = [];
-  for (let blade = 0; blade < 5; blade++) {
-    const angle = blade * 2.399, h = .55 + Math.sin(blade * 3.7) * .2;
+  for (let blade = 0; blade < 7; blade++) {
+    const angle = blade * 2.399, h = .45 + Math.sin(blade * 3.7) * .2;
     const dx = Math.cos(angle), dz = Math.sin(angle), n = vertices.length / 3;
     for (let j = 0; j < 4; j++) {
-      const t = j / 3, w = (1 - t) * .028, bend = t * t * .22;
+      const t = j / 3, w = Math.sin((t*.9+.1)*Math.PI) * .027, bend = t * t * .22;
       vertices.push(dx * bend - dz * w, t * h, dz * bend + dx * w);
       vertices.push(dx * bend + dz * w, t * h, dz * bend - dx * w);
     }

@@ -81,6 +81,9 @@ test('the environment moves at rest and reduced motion freezes it',async({page})
   await page.goto('/');await page.getByRole('button',{name:/第一境 · 王维/}).click();
   await expect(page.getByRole('button',{name:'入境漫游',exact:true})).toBeEnabled({timeout:60000});
   await page.getByRole('button',{name:'入境漫游',exact:true}).click();
+  // Canvas screenshots also capture DOM overlays above it. The reading HUD has
+  // its own clock, independently of reduced scene motion, so exclude that UI.
+  await page.getByRole('button',{name:'随行诗文',exact:true}).click();
   const moving=await page.locator('canvas').screenshot();
   await page.waitForTimeout(900);
   expect(moving.equals(await page.locator('canvas').screenshot())).toBeFalsy();

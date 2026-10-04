@@ -17,7 +17,7 @@
 .library-card.maple{background:#e1e6e6}
 .library-card.peach{background:#f1e6df}
 .library-card.cave{background:#e9e4d9}
-.library-landscape{position:relative;display:block;width:100%;height:clamp(180px,30dvh,280px);background-image:url('/art/literary-scroll-watercolor.png');background-size:500% auto;background-repeat:no-repeat;background-color:#c4cdba}
+.library-landscape{position:relative;display:block;width:100%;height:clamp(180px,30dvh,280px);background-image:url('/art/human-presence-directions.png');background-size:500% auto;background-repeat:no-repeat;background-color:#c4cdba}
 .library-number{position:absolute;top:13px;left:14px;font:italic 17px Georgia,serif;color:#fff8e6;text-shadow:0 1px 6px #1b3328}
 .library-current{position:absolute;left:12px;bottom:12px;display:flex;align-items:center;gap:6px;border:1px solid #f2f1dc99;background:#f5f2e7eb;box-shadow:0 2px 8px #29433115;border-radius:20px;padding:5px 9px;font-size:9px;letter-spacing:1px;color:#486048}
 .library-current>span{width:4px;height:4px;border-radius:50%;background:#58735b}

@@ -1,7 +1,10 @@
 import * as T from 'three';
+import {woodenBoat,flame} from './models';
+import {caveSection} from './landscape';
 import type {SceneId} from './scenes';
 import {grassTuftGeometry,addWind} from './watercolor';
 import {mountainShell} from './massif';
+import {keptGround} from './presence';
 
 /** Small painted marks generated in canvas, arranged in real 3D branches. */
 export function paintedLeaves(id:SceneId,random:()=>number){
@@ -26,7 +29,7 @@ export function buildSceneDetails({scene,id,random,height,riverX,material,camera
  const mesh=(g:T.BufferGeometry,m:T.Material,parent:T.Object3D=group)=>{const o=new T.Mesh(g,m);parent.add(o);return o;};
  const wood=material('#594734'),plaster=material('#ded4b3'),roof=material('#4f5550'),rock=material('#62736b');
  const lampMaterial=new T.MeshBasicMaterial({color:'#ffd699'}),reflection=new T.MeshBasicMaterial({color:'#edb46e',transparent:true,opacity:.5,depthWrite:false});
- const lanterns:T.Mesh[]=[],smoke:T.Mesh[]=[];
+ const lanterns:T.Mesh[]=[],smoke:T.Mesh[]=[],boats:T.Group[]=[],people:T.Group[]=[];
  const hut=(x:number,z:number,scale:number,temple=false)=>{
   const home=new T.Group();home.position.set(x,height(x,z),z);home.scale.setScalar(scale);group.add(home);
   mesh(new T.BoxGeometry(5,2.8,3.8),plaster,home).position.y=1.4;
@@ -44,19 +47,9 @@ export function buildSceneDetails({scene,id,random,height,riverX,material,camera
   return home;
  };
  const lantern=(x:number,z:number,y:number)=>{
-  const l=mesh(new T.SphereGeometry(.22,12,8),lampMaterial);l.position.set(x,y,z);l.scale.y=1.4;lanterns.push(l);
+  const l=mesh(new T.CircleGeometry(.1,12),reflection);l.rotation.x=-Math.PI/2;l.position.set(x,y,z);lanterns.push(l);
   const reflectionMesh=mesh(new T.PlaneGeometry(.35,3),reflection);reflectionMesh.rotation.x=-Math.PI/2;reflectionMesh.position.set(x,.19,z);lanterns.push(reflectionMesh);
  };
- if(id==='snow'){
-  // The single fisherman belongs to the boat, not to the walking camera.
-  const fisher=new T.Group();fisher.position.set(riverX(-18),.4,-18);group.add(fisher);
-  const hull=mesh(new T.SphereGeometry(1,20,10),wood,fisher);hull.scale.set(.8,.23,2.8);
-  mesh(new T.ConeGeometry(.37,1.15,20),material('#73695a'),fisher).position.y=.7;
-  mesh(new T.SphereGeometry(.16,12,8),wood,fisher).position.y=1.4;
-  mesh(new T.ConeGeometry(.53,.17,24),material('#b3a588'),fisher).position.y=1.58;
-  const rod=mesh(new T.CylinderGeometry(.014,.025,3.7,5),wood,fisher);rod.position.set(.75,1.35,.3);rod.rotation.z=-.8;
-  const line=new T.Line(new T.BufferGeometry().setFromPoints([new T.Vector3(2.1,2.6,0),new T.Vector3(2.2,-.1,0)]),new T.LineBasicMaterial({color:'#717d81'}));fisher.add(line);
- }
  if(id==='maple'){
   const temple=hut(-39,-22,2.2,true);temple.rotation.y=.25;
   // A broad stone arch crossing gives the nocturnal waterfront its own silhouette.
@@ -86,7 +79,8 @@ export function buildSceneDetails({scene,id,random,height,riverX,material,camera
   mesh(new T.BoxGeometry(30,1.4,.5),plaster).position.set(-43,2,-16);
   for(let i=0;i<7;i++){
    const z=16-i*9,x=riverX(z)-1.5+Math.sin(i)*2;
-   const boat=mesh(new T.SphereGeometry(1,16,8),wood);boat.position.set(x,.2,z);boat.scale.set(.7,.23,2.1);lantern(x,z,1);
+   const boat=woodenBoat(material,i%3===0);boat.position.set(x,.18,z);boat.rotation.y=.12*Math.sin(i);boat.scale.setScalar(.8);group.add(boat);boats.push(boat);
+   const post=mesh(new T.CylinderGeometry(.022,.03,1.15,8),wood,boat);post.position.set(.42,.85,1.6);const lamp=mesh(new T.CylinderGeometry(.14,.14,.25,12),lampMaterial,boat);lamp.position.set(.42,1.15,1.6);for(const y of [1.01,1.28])mesh(new T.CylinderGeometry(.17,.17,.035,12),wood,boat).position.set(.42,y,1.6);lantern(x+.34,z+1.28,.13);
   }
  }
  if(id==='peach'){
@@ -98,7 +92,7 @@ export function buildSceneDetails({scene,id,random,height,riverX,material,camera
    for(let v=0;v<fp.count;v++){const xx=fp.getX(v)+x,zz=fp.getZ(v)+z;fp.setXYZ(v,xx,height(xx,zz)+.03,zz);}fieldGeometry.computeVertexNormals();
    mesh(fieldGeometry,material(i%2?'#a3b36b':'#b6ba78'));
    const crop=new T.InstancedMesh(grassTuftGeometry(),cropMat,180);group.add(crop);const d=new T.Object3D();
-   for(let n=0;n<180;n++){const xx=x-4+(n%15)*.55,zz=z-4+Math.floor(n/15)*.65;d.position.set(xx,height(xx,zz)+.03,zz);d.scale.set(1.4,1.2,1.4);d.updateMatrix();crop.setMatrixAt(n,d.matrix);}crop.computeBoundingSphere();
+   let count=0;for(let n=0;n<180;n++){const xx=x-4+(n%15)*.55,zz=z-4+Math.floor(n/15)*.65;if(keptGround(id,xx,zz))continue;d.position.set(xx,height(xx,zz)+.03,zz);d.scale.set(1.4,1.2,1.4);d.updateMatrix();crop.setMatrixAt(count++,d.matrix);}crop.count=count;crop.computeBoundingSphere();
   }
   // Quiet ponds and low woven boundaries distinguish a lived-in pastoral basin.
   const pondMat=material('#8db6a5');pondMat.transparent=true;pondMat.opacity=.86;
@@ -110,20 +104,17 @@ export function buildSceneDetails({scene,id,random,height,riverX,material,camera
    const x=28+i*.7,z=-12,y=height(x,z);mesh(new T.CylinderGeometry(.035,.055,1,5),wood).position.set(x,y+.5,z);
    for(const dy of [.3,.65])mesh(new T.BoxGeometry(.85,.055,.06),wood).position.set(x,y+dy,z);
   }
-  // A soft breath of cooking smoke, and tiny village figures beyond the passage.
-  const smokeMat=new T.MeshBasicMaterial({color:'#ece8d7',transparent:true,opacity:.10,depthWrite:false});
-  for(let i=0;i<7;i++){const puff=mesh(new T.SphereGeometry(1,10,8),smokeMat);puff.position.set(20+i*.2,6+i*.6,-31);puff.scale.set(.6+i*.12,.7,.5+i*.1);smoke.push(puff);}
-  for(let i=0;i<5;i++){const x=12+i*4,z=-32+(i%2)*5,y=height(x,z);mesh(new T.ConeGeometry(.24,1,16),material(i%2?'#a08868':'#7e9075')).position.set(x,y+.6,z);mesh(new T.SphereGeometry(.14,10,8),wood).position.set(x,y+1.25,z);}
+  const arrivalBoat=woodenBoat(material,true);arrivalBoat.position.set(riverX(12),.16,12);group.add(arrivalBoat);boats.push(arrivalBoat);
  }
  let torch:T.PointLight|null=null;
  const torchProp=new T.Group();group.add(torchProp);torchProp.visible=false;
  if(id==='peach'||id==='cave'){
-  const start=id==='peach'?5:-7,end=id==='peach'?-10:-44,width=id==='peach'?1.8:2.6;
+  const start=id==='peach'?5:-7,end=id==='peach'?-10:-86,width=id==='peach'?1.8:2.6;
   const positions:number[]=[],indices:number[]=[],rings=70,segments=28;
   for(let i=0;i<=rings;i++){
    const z=T.MathUtils.lerp(start,end,i/rings),cx=riverX(z)+10,ground=height(cx,z);
    for(let j=0;j<=segments;j++){
-    const a=j/segments*Math.PI,w=width*(1+Math.sin(z*.7)*.1),h=(id==='peach'?4.6:5.4)+Math.sin(z*.8)*.35;
+    const a=j/segments*Math.PI,w=(id==='cave'?caveSection(z).width:width)*(1+Math.sin(z*.7)*.06),h=(id==='peach'?4.6:caveSection(z).ceiling)+Math.sin(z*.8)*.35;
     positions.push(cx+Math.cos(a)*w,ground-.15+Math.sin(a)*h,z);
     if(i<rings&&j<segments){const n=i*(segments+1)+j;indices.push(n,n+1,n+segments+1,n+1,n+segments+2,n+segments+1);}
    }
@@ -146,22 +137,27 @@ export function buildSceneDetails({scene,id,random,height,riverX,material,camera
    // A warm ember marks the cave mouth, with no floating text or waypoint.
    const mouthX=riverX(-7)+10,mouthY=height(mouthX,-7);
    mesh(new T.CylinderGeometry(.045,.06,1.2,8),wood).position.set(mouthX+2.1,mouthY+1,-6.7);
-   const mouthFlame=mesh(new T.SphereGeometry(.14,12,8),lampMaterial);mouthFlame.position.set(mouthX+2.1,mouthY+1.7,-6.7);mouthFlame.scale.y=2;
+   const mouthFlame=flame(windTime,.65);group.add(mouthFlame);mouthFlame.position.set(mouthX+2.1,mouthY+1.6,-6.7);
    const mouthLight=new T.PointLight('#ffb96e',12,12,1.8);mouthLight.position.copy(mouthFlame.position);group.add(mouthLight);
    const mineral=material('#a5a18a');
    for(let i=0;i<50;i++){
-    const z=-11-random()*32,side=i%2?1:-1,x=riverX(z)+10+side*(1.85+random()*.2),h=.5+random()*1.4;
-    const m=mesh(new T.ConeGeometry(.15+random()*.3,h,10),mineral);m.position.set(x,height(x,z)+(i%3===0?4.2:h/2),z);if(i%3===0)m.rotation.z=Math.PI;
+    const z=-11-random()*65,side=i%2?1:-1,x=riverX(z)+10+side*(caveSection(z).width-.6-random()*.3),h=.5+random()*1.8;
+    const m=mesh(new T.LatheGeometry([new T.Vector2(.2+random()*.25,0),new T.Vector2(.18,h*.25),new T.Vector2(.13,h*.55),new T.Vector2(.06,h*.82),new T.Vector2(.008,h)],16),mineral);m.position.set(x,height(x,z)+(i%3===0?caveSection(z).ceiling-.4:0),z);if(i%3===0)m.rotation.z=Math.PI;
    }
-   // Cap the designed route in rock; the essay never claims to reach the cave's end.
-   const endRock=mesh(new T.SphereGeometry(1,16,12),rock);endRock.position.set(riverX(-45)+10,height(riverX(-45)+10,-45)+3,-45);endRock.scale.set(3,5,2);
+   // The narrow approach opens into a cavern, with a passage continuing into darkness.
+   const cx=riverX(-52)+10,cy=height(cx,-52);
+   const poolGeometry=new T.CircleGeometry(2.2,48);poolGeometry.rotateX(-Math.PI/2);const pp=poolGeometry.attributes.position;for(let i=0;i<pp.count;i++){const x=pp.getX(i)+cx-4.7,z=pp.getZ(i)*1.5-52;pp.setXYZ(i,x,height(x,z)+.09,z);}poolGeometry.computeVertexNormals();mesh(poolGeometry,material('#496b66'));
+   for(let i=0;i<22;i++){const a=i/22*Math.PI*2,x=cx-4.7+Math.cos(a)*2.5,z=-52+Math.sin(a)*3.7;const stone=mesh(new T.IcosahedronGeometry(.45,2),rock);stone.position.set(x,height(x,z)+.1,z);stone.scale.set(1,.45,1);}
+   const pillar=mesh(new T.LatheGeometry([new T.Vector2(1.25,0),new T.Vector2(.85,1.4),new T.Vector2(.55,4),new T.Vector2(.8,6),new T.Vector2(1.35,8)],24),rock);pillar.position.set(cx+4,height(cx+4,-53),-53);
+   const poolLight=new T.PointLight('#91bcb3',7,22,1.7);poolLight.position.set(cx-4,cy+6,-53);group.add(poolLight);
+   for(let i=0;i<3;i++){const z=-40-i*10,x=riverX(z)+10+3,y=height(x,z);const fire=flame(windTime,.45);fire.position.set(x,y+1.1,z);group.add(fire);mesh(new T.CylinderGeometry(.04,.06,1.15,8),wood).position.set(x,y+.55,z);const light=new T.PointLight('#ffb56c',9,15,1.8);light.position.set(x,y+1.4,z);group.add(light);}
    torch=new T.PointLight('#ffb86a',0,22,1.5);group.add(torch);
    const handle=mesh(new T.CylinderGeometry(.035,.045,.5,8),wood,torchProp);handle.position.set(.36,-.59,-.8);handle.rotation.z=-.15;
-   const flame=mesh(new T.SphereGeometry(.028,16,12),new T.MeshBasicMaterial({color:'#ffce7c'}),torchProp);flame.position.set(.4,-.3,-.8);flame.scale.y=2.3;
+   const fire=flame(windTime,.23);torchProp.add(fire);fire.position.set(.4,-.32,-.8);for(const y of [-.39,-.43])mesh(new T.CylinderGeometry(.047,.047,.024,12),rock,torchProp).position.set(.39,y,-.8);
   }
  }
  return {tick:(time:number,shelter:number,reduced:boolean)=>{
   if(torch){torchProp.visible=shelter>.1;torchProp.position.copy(camera.position);torchProp.quaternion.copy(camera.quaternion);torch.position.copy(camera.position).add(new T.Vector3(.2,-.35,-.1));torch.intensity=18*shelter*(reduced?1:1+Math.sin(time*8)*.04+Math.sin(time*13)*.025);}
-  if(!reduced){lanterns.forEach((l,i)=>{if(i%2===0)l.scale.y=1.4+Math.sin(time*3+i)*.07;else l.scale.y=1+Math.sin(time*1.3+i)*.13;});smoke.forEach((p,i)=>p.position.x=20+i*.2+Math.sin(time*.3+i*.6)*.4);}
+  if(!reduced){boats.forEach((b,i)=>{b.position.y=.18+Math.sin(time*.65+i)*.025;b.rotation.z=Math.sin(time*.5+i)*.012;});people.forEach((p,i)=>{p.rotation.z=Math.sin(time*.65+i)*.012;p.children.filter(c=>c.name==='sleeve').forEach((a,j)=>a.rotation.x=Math.sin(time*.8+i+j)*.07);});lanterns.forEach((l,i)=>{if(i%2===0)l.scale.y=1.4+Math.sin(time*3+i)*.07;else l.scale.y=1+Math.sin(time*1.3+i)*.13;});smoke.forEach((p,i)=>p.position.x=20+i*.2+Math.sin(time*.3+i*.6)*.4);}
  }};
 }

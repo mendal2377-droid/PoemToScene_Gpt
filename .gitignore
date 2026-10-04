@@ -5,6 +5,7 @@ dist/
 *.tsbuildinfo
 test-results/
 reference-review/
+film/output/
 .env
 .env.*
 !.env.example

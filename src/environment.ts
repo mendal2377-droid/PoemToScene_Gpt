@@ -46,10 +46,22 @@ export function environmentFrame(hour:number,weather:Weather){
   };
 }
 
-type AtmosphereObjects={scene:T.Scene;camera:T.Camera;renderer:T.WebGLRenderer;hemisphere:T.HemisphereLight;sunlight:T.DirectionalLight;fill:T.DirectionalLight;moon:T.Mesh;foliage:T.MeshBasicMaterial;water:T.MeshStandardMaterial;ripples:T.LineBasicMaterial;mist:T.ShaderMaterial};
+type AtmosphereObjects={scene:T.Scene;camera:T.Camera;renderer:T.WebGLRenderer;hemisphere:T.HemisphereLight;sunlight:T.DirectionalLight;fill:T.DirectionalLight;moon:T.Mesh;foliage:T.MeshLambertMaterial;water:T.MeshStandardMaterial;ripples:T.LineBasicMaterial;mist:T.ShaderMaterial};
 export function createAtmosphere(objects:AtmosphereObjects,id:SceneId='autumn'){
   const {scene,camera,renderer,hemisphere,sunlight,fill,moon,foliage,water,ripples,mist}=objects;
   let settings={...defaultEnvironment},hour=settings.hour,settling=0,clockSeconds=0,rainTime=0,shelter=0;
+  const skyMaterial=new T.ShaderMaterial({side:T.BackSide,depthWrite:false,fog:false,uniforms:{uHorizon:{value:new T.Color()},uZenith:{value:new T.Color()},uCloud:{value:0},uShelter:{value:0}},
+    vertexShader:'varying vec3 vSky;void main(){vSky=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
+    fragmentShader:`varying vec3 vSky;uniform vec3 uHorizon;uniform vec3 uZenith;uniform float uCloud;uniform float uShelter;
+      void main(){vec3 d=normalize(vSky);float h=max(0.0,d.y);vec3 c=mix(uHorizon,uZenith,pow(h,.48));
+      float cloud=sin(d.x*14.0+sin(d.z*11.0))*sin(d.z*19.0+d.y*8.0);c=mix(c,uHorizon,smoothstep(.2,.9,cloud)*uCloud*.18);c=mix(c,vec3(.018,.025,.028),uShelter);
+      gl_FragColor=vec4(c,1.0);
+      #include <tonemapping_fragment>
+      #include <colorspace_fragment>
+    }`});
+  scene.add(new T.Mesh(new T.SphereGeometry(360,32,20),skyMaterial));
+  const glow=document.createElement('canvas');glow.width=glow.height=128;const gc=glow.getContext('2d')!,wash=gc.createRadialGradient(64,64,0,64,64,64);wash.addColorStop(0,'rgba(255,255,255,.5)');wash.addColorStop(.3,'rgba(255,255,255,.12)');wash.addColorStop(1,'rgba(255,255,255,0)');gc.fillStyle=wash;gc.fillRect(0,0,128,128);
+  const haloMap=new T.CanvasTexture(glow),halo=new T.Sprite(new T.SpriteMaterial({map:haloMap,color:'#e2e4cb',transparent:true,opacity:.2,depthWrite:false,fog:false,blending:T.AdditiveBlending}));halo.scale.set(24,24,1);scene.add(halo);moon.scale.setScalar(.72);
   const sun=new T.Mesh(new T.SphereGeometry(5,20,16),new T.MeshBasicMaterial({color:'#ffe2a2',fog:false}));scene.add(sun);
   let seed=7821;const random=()=>{seed=seed*16807%2147483647;return seed/2147483647;};
   const starPositions:number[]=[];
@@ -83,16 +95,23 @@ export function createAtmosphere(objects:AtmosphereObjects,id:SceneId='autumn'){
     f.sun*=1-enclosed;f.fog=T.MathUtils.lerp(f.fog,.038,enclosed);f.mist*=1-enclosed;
 
     (scene.background as T.Color).lerp(f.sky,factor);const fog=scene.fog as T.FogExp2;fog.color.copy(scene.background as T.Color);fog.density=T.MathUtils.lerp(fog.density,f.fog,factor);
+    skyMaterial.uniforms.uHorizon.value.copy(scene.background);
+    skyMaterial.uniforms.uZenith.value.copy(f.sky).multiplyScalar(.64).lerp(new T.Color('#254952'),f.night*.18);
+    skyMaterial.uniforms.uCloud.value=settings.weather==='clear'?.25:.85;skyMaterial.uniforms.uShelter.value=enclosed;
     hemisphere.color.lerp(f.light,factor);hemisphere.intensity=T.MathUtils.lerp(hemisphere.intensity,f.ambient,factor);
     sunlight.color.lerp(f.light,factor);sunlight.intensity=T.MathUtils.lerp(sunlight.intensity,f.sun,factor);
     fill.intensity=T.MathUtils.lerp(fill.intensity,(.15+(1-f.night)*.45)*(1-shelter),factor);
     renderer.toneMappingExposure=T.MathUtils.lerp(renderer.toneMappingExposure,f.exposure,factor);
-    foliage.color.lerp(f.leaf,factor);water.color.lerp(f.water,factor);ripples.opacity=T.MathUtils.lerp(ripples.opacity,.2+(1-f.night)*.28,factor);
+    foliage.color.lerp(f.leaf.clone().lerp(new T.Color('#b9c8b6'),.55),factor);
+    foliage.emissive.copy(f.leaf);foliage.emissiveIntensity=.12+f.night*.16;foliage.emissiveMap=foliage.map;
+    water.color.lerp(f.water,factor);ripples.opacity=T.MathUtils.lerp(ripples.opacity,.2+(1-f.night)*.28,factor);
     mist.uniforms.uMistOpacity.value=T.MathUtils.lerp(mist.uniforms.uMistOpacity.value,f.mist,factor);mist.uniforms.uMistTint.value.copy(f.sky);
     const angle=(hour-6)/24*Math.PI*2;
     sun.position.set(-Math.cos(angle)*120,Math.sin(angle)*130,-145);sun.visible=hour>5.8&&hour<18.5&&settings.weather!=='rain'&&settings.weather!=='mist'&&settings.weather!=='snow'&&shelter<.1;
     moon.position.set(Math.cos(angle)*90,35+Math.max(0,-Math.sin(angle))*95,-160);moon.visible=f.night>.08&&settings.weather!=='rain'&&settings.weather!=='mist'&&settings.weather!=='snow'&&shelter<.1;
+    halo.position.copy(moon.position);halo.visible=moon.visible;halo.material.opacity=f.night*.25;
     sunlight.position.copy(f.night>.5?moon.position:sun.position);sunlight.position.y=Math.max(20,sunlight.position.y);
+    renderer.shadowMap.needsUpdate=true;
     stars.material.opacity=f.night*(settings.weather==='clear'?.8:settings.weather==='cloudy'?.16:0);
     rain.material.opacity=.2+(1-f.night)*.14;
   };
@@ -113,6 +132,6 @@ export function createAtmosphere(objects:AtmosphereObjects,id:SceneId='autumn'){
       clockSeconds+=dt;if(clockSeconds>=1){clockSeconds=0;onClock(hour);}
       return changed;
     },
-    weather:()=>settings.weather,hour:()=>hour,
+    weather:()=>settings.weather,hour:()=>hour,dispose:()=>haloMap.dispose(),
   };
 }

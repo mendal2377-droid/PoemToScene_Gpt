@@ -3,6 +3,7 @@ import type {SceneId} from './scenes';
 export const riverCenter=(z:number)=>Math.sin(z*.065)*7-4;
 export const routeCenter=(z:number)=>riverCenter(z)+10;
 const smooth=(t:number)=>{t=Math.max(0,Math.min(1,t));return t*t*(3-2*t);};
+export const caveSection=(z:number)=>{const chamber=Math.exp(-Math.pow((z+51)/17,4));return {width:2.6+6.5*chamber,ceiling:5.4+4.2*chamber};};
 export const mountainAscent=(z:number)=>14*smooth((27-z)/36)+Math.max(0,-9-z)*.045;
 
 /** The route stays continuous while shore width and surrounding relief change. */
