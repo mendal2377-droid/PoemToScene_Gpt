@@ -1,6 +1,6 @@
 import * as T from 'three';
 import {woodenBoat,flame} from './models';
-import {caveSection} from './landscape';
+import {caveSection,waterEdges} from './landscape';
 import type {SceneId} from './scenes';
 import {grassTuftGeometry,addWind} from './watercolor';
 import {mountainShell} from './massif';
@@ -52,31 +52,17 @@ export function buildSceneDetails({scene,id,random,height,riverX,material,camera
  };
  if(id==='maple'){
   const temple=hut(-39,-22,2.2,true);temple.rotation.y=.25;
-  // A broad stone arch crossing gives the nocturnal waterfront its own silhouette.
-  const bridgeStone=material('#8a8f89'),span=30,left=riverX(7)-20;
-  const outline=new T.Shape();outline.moveTo(0,0);outline.lineTo(span,0);outline.lineTo(span,3);
-  outline.quadraticCurveTo(span/2,7,0,3);outline.closePath();
-  for(let i=0;i<3;i++){
-   const hole=new T.Path(),cx=5+i*10;hole.moveTo(cx-3.3,.12);hole.lineTo(cx-3.3,.5);
-   hole.absarc(cx,.5,3.3,Math.PI,0,true);hole.lineTo(cx+3.3,.12);hole.closePath();outline.holes.push(hole);
-  }
-  const bridge=mesh(new T.ExtrudeGeometry(outline,{depth:3,bevelEnabled:false,curveSegments:18}),bridgeStone);bridge.position.set(left,.12,5.5);
-  const posts=new T.InstancedMesh(new T.BoxGeometry(.16,.65,.16),bridgeStone,62),rails=new T.InstancedMesh(new T.BoxGeometry(1.1,.12,.18),bridgeStone,62),part=new T.Object3D();group.add(posts,rails);
-  let railingIndex=0;
-  for(let i=0;i<=30;i++)for(const side of [-1,1]){
-   const t=i/30,y=3+8*t*(1-t)+.12;
-   part.position.set(left+i,y+.3,7+side*1.4);part.updateMatrix();posts.setMatrixAt(railingIndex,part.matrix);
-   part.position.y=y+.65;part.updateMatrix();rails.setMatrixAt(railingIndex++,part.matrix);
-  }
-  posts.computeBoundingSphere();rails.computeBoundingSphere();
-  const quay=mesh(new T.BoxGeometry(8,1.5,64),bridgeStone);quay.position.set(-34,.1,-17);
+  // The crossing itself shares its geometry and elevation with pedestrian navigation.
+  const bridgeStone=material('#8a8f89');
+  const quay=mesh(new T.BoxGeometry(8,1.5,64),bridgeStone);quay.position.set(-34,-.35,-17);
   // A tiered bell tower and low enclosing wall sit across the water.
   for(let tier=0;tier<3;tier++){
    mesh(new T.BoxGeometry(5-tier,.6,5-tier),roof).position.set(-49,5+tier*3,-28);
    mesh(new T.BoxGeometry(2.8-tier*.4,2.5,2.8-tier*.4),plaster).position.set(-49,6.4+tier*3,-28);
   }
   mesh(new T.ConeGeometry(2.8,1.7,4),roof).position.set(-49,14,-28);
-  mesh(new T.BoxGeometry(30,1.4,.5),plaster).position.set(-43,2,-16);
+  const gate=waterEdges(id,-16).left-4.2;
+  for(const [a,b] of [[-58,gate-1.5],[gate+1.5,-28]])if(b>a)mesh(new T.BoxGeometry(b-a,1.4,.5),plaster).position.set((a+b)/2,height((a+b)/2,-16)+.7,-16);
   for(let i=0;i<7;i++){
    const z=16-i*9,x=riverX(z)-1.5+Math.sin(i)*2;
    const boat=woodenBoat(material,i%3===0);boat.position.set(x,.18,z);boat.rotation.y=.12*Math.sin(i);boat.scale.setScalar(.8);group.add(boat);boats.push(boat);

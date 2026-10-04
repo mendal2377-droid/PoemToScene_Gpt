@@ -9,6 +9,8 @@ import { createWatercolorMaterials, mountainRange, grassTuftGeometry, fernGeomet
 import type { SoundPosition } from './audio';
 import {createAtmosphere,type EnvironmentSettings} from './environment';
 import {createPresence,keptGround} from './presence';
+import {bridgeLayout,bridgeClearance,bridgeSurface,bridgeWalkable,bridgeTourTarget} from './bridges';
+import {buildConnectedBridge} from './bridgeMesh';
 
 export type CinemaFrame={time:number;position:[number,number,number];target:[number,number,number];fov:number;hour:number;moon?:[number,number,number];boatZ?:number};
 export type WorldAPI = { cinema:(frame:CinemaFrame)=>HTMLCanvasElement; returnToEntrance:()=>void; environment: (settings:Partial<EnvironmentSettings>) => void; mode: (mode: Mode) => void; go: (index: number) => void; reset: () => void; tour: (on: boolean) => void; quality: (low: boolean) => void; motion: (reduce: boolean) => void; pause: (on: boolean) => void; input: (x: number, y: number) => void; dispose: () => void };
@@ -19,6 +21,7 @@ export const riverX=riverCenter;
 export function createWorld(host: HTMLDivElement, events: Events, definition:SceneDefinition=scenes[0]): WorldAPI {
   const id=definition.id,landmarks=definition.landmarks;
   const height=(x:number,z:number)=>landscapeHeight(id,x,z),view=landscapeViews[id];
+  const crossing=bridgeLayout(id),walkingHeight=(x:number,z:number)=>bridgeSurface(id,x,z)??height(x,z);
   const winter=id==='snow',flower=id==='peach',maple=id==='maple',cave=id==='cave';
   let dirty=true,paused=false,disposed=false,sceneReady=false,artReady=false;
   const scene = new T.Scene();
@@ -192,13 +195,13 @@ export function createWorld(host: HTMLDivElement, events: Events, definition:Sce
   const blockers:{x:number;z:number;r:number}[]=[];
   for(let i=0;i<(winter?5:cave?28:maple?42:90);i++) {
     const x=(random()-.5)*145,z=random()*105-70,dist=Math.abs(x-riverX(z));
-    const edge=waterEdges(id,z);if((x>edge.left-2&&x<edge.right+2) || (x>0&&x<26&&z>-41&&z<31)) continue;
+    const edge=waterEdges(id,z);if((x>edge.left-2&&x<edge.right+2) || (x>0&&x<26&&z>-41&&z<31)||bridgeClearance(id,x,z)) continue;
     if((flower&&z<5)||(cave&&z<8))continue;
     tree(x,z,(flower?.45:.55)+random()*(flower?.55:1.1));blockers.push({x,z,r:.9});
   }
   [[16,17,1.55],[20,12,1.1],[24,22,1.55],[17,24,.9],[-19,20,1.65],[-24,11,1.1],[-22,-12,1.1],[22,-34,1.05],
     [19,29,1.35],[24,4,1.6],[21,-6,1.3],[17,-30,1.2],[23,-42,1.4],[-15,-28,1.2],[-20,-44,1.5],[-13,30,1.4]
-  ].forEach(([x,z,s])=>{if(winter||(maple&&x<0)||(flower&&z<5)||(cave&&(z<14||x<20)))return;tree(x,z,flower?s*.65:maple?s*.68:s);blockers.push({x,z,r:.9});});
+  ].forEach(([x,z,s])=>{if(winter||(maple&&x<0)||(flower&&z<5)||(cave&&(z<14||x<20))||bridgeClearance(id,x,z))return;tree(x,z,flower?s*.65:maple?s*.68:s);blockers.push({x,z,r:.9});});
   if(flower){for(let i=0;i<55;i++){const z=8+random()*35,x=riverX(z)+(i%2?-1:1)*(5+random()*3);tree(x,z,.85+random()*.45);}}
   if(id==='autumn'){for(let i=0;i<8;i++){const z=-20+random()*24,x=riverX(z)-12-random()*3;tree(x,z,1.25+random()*.4);}}
   if(cave){
@@ -208,6 +211,7 @@ export function createWorld(host: HTMLDivElement, events: Events, definition:Sce
   }
   for(let i=0;i<(winter?35:cave?80:200);i++) {
     const z=random()*120-70,side=random()>.5?1:-1,x=riverX(z)+side*(id==='peach'?3.5+random()*2:5.5+random()*3),s=.25+random()*1.2;
+    if(bridgeClearance(id,x,z))continue;
     instance('rocks',x,height(x,z)-.05,z,s,s*.65,s*.8,random()*.6,random()*6);
   }
   for(let i=0;i<(id==='autumn'?55:flower?24:0);i++) {
@@ -224,24 +228,24 @@ export function createWorld(host: HTMLDivElement, events: Events, definition:Sce
   for(let i=0;i<(winter?0:cave?8500:maple?14500:22000);i++) {
     const z=random()*110-60,x=(random()-.5)*90,dist=Math.abs(x-riverX(z));
     const edge=waterEdges(id,z);if((cave&&z<8)||(flower&&z<6&&z>-12&&Math.abs(x-(riverX(z)+10))<20)||(x>edge.left-1&&x<edge.right+1)||Math.abs(x-(riverX(z)+10))<1.6)continue;
-    if(plantedPlot(x,z)||keptGround(id,x,z))continue;
+    if(plantedPlot(x,z)||keptGround(id,x,z)||bridgeClearance(id,x,z))continue;
     const h=.35+random()*.65;instance('grass',x,height(x,z),z,1.5,h,1.5,(random()-.5)*.25,random()*6);
   }
   // Close grass carpets are concentrated where a walker sees them, with the path kept clear.
   for(let i=0;i<(winter?0:10000);i++){
     const z=random()*82-49,side=i%2?1:-1,x=riverX(z)+10+side*(1.6+Math.pow(random(),1.6)*12),edge=waterEdges(id,z);
-    if((cave&&z<-6)||(flower&&z<6&&z>-12)||(x>edge.left-.5&&x<edge.right+.5)||plantedPlot(x,z)||keptGround(id,x,z))continue;
+    if((cave&&z<-6)||(flower&&z<6&&z>-12)||(x>edge.left-.5&&x<edge.right+.5)||plantedPlot(x,z)||keptGround(id,x,z)||bridgeClearance(id,x,z))continue;
     instance('grass',x,height(x,z),z,.8+random()*.7,.3+random()*.7,1.1,0,random()*6.28);
   }
   // Layered fern colonies hug the path; tall reeds soften the wet banks.
   for(let i=0;i<(winter?0:cave?120:maple?80:600);i++){
     const z=random()*91-49,side=random()>.5?1:-1,x=riverX(z)+10+side*(1.7+Math.pow(random(),2)*8);
-    const edge=waterEdges(id,z);if((cave&&z<8)||(flower&&z<6)||(x>edge.left-1&&x<edge.right+1)||keptGround(id,x,z))continue;
+    const edge=waterEdges(id,z);if((cave&&z<8)||(flower&&z<6)||(x>edge.left-1&&x<edge.right+1)||keptGround(id,x,z)||bridgeClearance(id,x,z))continue;
     const s=.45+random()*.55;instance('fern',x,height(x,z),z,s,s,s,0,random()*6.28);
   }
   for(let i=0;i<(winter||cave?0:maple?160:flower?340:1050);i++){
     const z=random()*110-65,edge=waterEdges(id,z),x=random()>.5?edge.right+random()*1.3:edge.left-random()*1.3;
-    if(keptGround(id,x,z))continue;
+    if(keptGround(id,x,z)||bridgeClearance(id,x,z))continue;
     instance('reeds',x,height(x,z)-.15,z,.9,1.3+random()*1.1,.9,0,random()*6.28);
   }
   let lightQuality=false;
@@ -279,14 +283,7 @@ export function createWorld(host: HTMLDivElement, events: Events, definition:Sce
   };
   makeRoof(5.2,4.8);makeRoof(3.4,6.35);
   mesh(new T.SphereGeometry(.2,8,8),darkWood,pavilion).position.y=8.5;
-  // Arched footbridge, composed from weathered timber.
-  const bridgeZ=7,bridgeCenter=riverX(bridgeZ);
-  for(let i=0;i<29;i++) {
-    const x=bridgeCenter-9+i*.64,t=i/28,y=.65+Math.sin(t*Math.PI)*1.35;
-    const plank=mesh(new T.BoxGeometry(.65,.16,1.8),darkWood,scenic);plank.position.set(x,y,bridgeZ);
-    if(i%3===0)for(const s of [-1,1])mesh(new T.BoxGeometry(.1,.9,.1),darkWood,scenic).position.set(x,y+.5,bridgeZ+s*.85);
-    for(const s of [-1,1]){const rail=mesh(new T.BoxGeometry(.68,.09,.09),darkWood,scenic);rail.position.set(x,y+.95,bridgeZ+s*.85);rail.rotation.z=Math.cos(t*Math.PI)*.23;}
-  }
+  buildConnectedBridge(scene,id,material,sand);
   const boat=woodenBoat(material,true);boat.position.set(riverX(-35),.22,-35);boat.rotation.y=-.15;scene.add(boat);boat.visible=id==='autumn'||maple;
   for(let i=0;i<(id==='autumn'?28:0);i++){const z=-30-random()*13,x=riverX(z)+(random()-.5)*7;const leaf=mesh(new T.CircleGeometry(.2+random()*.3,9),pineLight);leaf.rotation.x=-Math.PI/2;leaf.position.set(x,.15,z);}
 
@@ -362,8 +359,10 @@ export function createWorld(host: HTMLDivElement, events: Events, definition:Sce
     const center=riverX(z)+10;
     const halfWidth=cave?caveSection(z).width-.65:1.05;
     const safeX=T.MathUtils.clamp(x,inPassage?center-halfWidth:riverX(z)+7,inPassage?center+halfWidth:28);
-    if(cave&&caveObstacle(safeX,z))return;
-    if(!blockers.some(b=>Math.hypot(safeX-b.x,z-b.z)<b.r+.35))player.position.set(safeX,height(safeX,z),z);
+    const nextX=crossing?x:safeX;
+    if(crossing&&!bridgeWalkable(id,nextX,z))return;
+    if(cave&&caveObstacle(nextX,z))return;
+    if(!blockers.some(b=>Math.hypot(nextX-b.x,z-b.z)<b.r+.35))player.position.set(nextX,walkingHeight(nextX,z),z);
     if(Math.abs(dx)+Math.abs(dz)>.02){player.rotation.y=Math.atan2(dx,dz);legs.forEach((l,i)=>l.rotation.x=Math.sin(elapsed*9+i*Math.PI)*.45);}
     else legs.forEach(l=>l.rotation.x=0);
   };
@@ -396,8 +395,8 @@ export function createWorld(host: HTMLDivElement, events: Events, definition:Sce
         if(player.position.z>26){stopTour();}
         else {while(returnRoute.length&&Math.hypot(returnRoute[0].x-player.position.x,returnRoute[0].z-player.position.z)<.16)returnRoute.shift();const z=Math.min(27,player.position.z+3),target=returnRoute[0]||{x:riverX(z)+10,z},delta=new T.Vector2(target.x-player.position.x,target.z-player.position.z),distance=delta.length();delta.normalize();movePlayer(delta.x,delta.y,Math.min(dt*.8,distance/4));if(!lookOverride){const targetYaw=Math.atan2(-delta.x,-delta.y);yaw+=Math.atan2(Math.sin(targetYaw-yaw),Math.cos(targetYaw-yaw))*(1-Math.exp(-dt*2));}}
       } else if(autoTour) {
-        const target=landmarks[tourTarget],inPassage=(flower&&target.z<5&&target.z>-10)||(cave&&target.z<-7),tx=inPassage?riverX(target.z)+10:Math.max(target.x,riverX(target.z)+7.4),delta=new T.Vector2(tx-player.position.x,target.z-player.position.z);
-        if(delta.length()<1.4){tourPause+=dt;if(tourPause>4){tourPause=0;tourTarget++;if(tourTarget>=landmarks.length)stopTour();}}
+        const target=landmarks[tourTarget],inPassage=(flower&&target.z<5&&target.z>-10)||(cave&&target.z<-7),tx=inPassage?riverX(target.z)+10:Math.max(target.x,riverX(target.z)+7.4),crossingTarget=bridgeTourTarget(id,player.position.x,player.position.z),delta=new T.Vector2((crossingTarget?.x??tx)-player.position.x,(crossingTarget?.z??target.z)-player.position.z);
+        if(!crossingTarget&&delta.length()<1.4){tourPause+=dt;if(tourPause>4){tourPause=0;tourTarget++;if(tourTarget>=landmarks.length)stopTour();}}
         else {delta.normalize();movePlayer(delta.x,delta.y,dt*.65);
           if(!lookOverride){const targetYaw=Math.atan2(-delta.x,-delta.y);yaw+=Math.atan2(Math.sin(targetYaw-yaw),Math.cos(targetYaw-yaw))*(1-Math.exp(-dt*2));}
         }
@@ -466,7 +465,7 @@ export function createWorld(host: HTMLDivElement, events: Events, definition:Sce
     mode:setMode,
     go:(index)=>{const p=landmarks[index];if(!p)return;stopTour();if(mode==='walk'){
       const inPassage=(flower&&p.z<5&&p.z>-10)||(cave&&p.z<-7),px=inPassage?riverX(p.z)+10:Math.max(p.x,riverX(p.z)+7.4);
-      player.position.set(px,height(px,p.z),p.z);
+      player.position.set(px,walkingHeight(px,p.z),p.z);
       const focal:Record<string,[number,number]>={
         'autumn-0':[riverX(14)+7.8,14],'autumn-1':[riverX(-3),-3],'autumn-2':[18,-20],'autumn-3':[riverX(-35),-35],
         'snow-2':[riverX(-18)+1,-18],
